@@ -56,6 +56,19 @@ Next.js 16 (App Router, `cacheComponents`, `partialPrefetching`, `typedRoutes`, 
 - `src/config/navigation.ts` — sidebar items (typed `Route` hrefs).
 - Create folders/files only when they contain real code (no empty scaffolding).
 
+## Character Fact domain
+
+Spec: `docs/character-fact-schema.md`; rationale and open questions: `docs/character-domain-decisions.md`. Code: `src/features/characters/domain/` (imports only `zod` — enforced by a test).
+
+- `CharacterFacts` is the single source of truth. AI-edited content must never write back to it.
+- `values` is a flat map `fieldKey → { state: "specified", value } | { state: "not_applicable" }`; **unspecified = key absent** (never stored explicitly).
+- Field keys, option codes, units and item ids are permanent technical ids — never derived from labels, never renamed or reused. Labels live in `labels.vi.ts`.
+- Every repeated element (list item, event, relationship…) has a stable `id`.
+- Convert form input with `normalizeFactInput`, then validate with `characterFactsSchema`. Schemas never transform data.
+- Nesting limit: group → sub-group → field → leaf sub-field.
+- Adding a built-in field: add it to `definitions.ts`, `labels.vi.ts` and the table in `docs/character-fact-schema.md` (tests check all three).
+- Sample characters in `__tests__/fixtures/` are illustrative only — never seed them as real data.
+
 ## Next.js 16 conventions
 
 - Cache Components is on. Any request-time data (DB, `cookies()`, `headers()`) must sit under a `<Suspense>` boundary; call `await connection()` before uncached DB reads that must not run at build time. Use `"use cache"` + `cacheLife()` only when caching is intended.

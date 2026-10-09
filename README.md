@@ -102,7 +102,7 @@ src/
 │   ├── shared/               # PageHeader, EmptyState, UnavailableAction
 │   └── providers/            # ThemeProvider
 ├── features/                 # Module theo nghiệp vụ
-│   ├── characters/           #   CharacterCard (presentational)
+│   ├── characters/           #   Character Fact domain (types, Zod schemas, definitions), CharacterCard
 │   ├── settings/             #   ThemeSelector, theme options
 │   └── system-status/        #   Trạng thái ứng dụng / database
 ├── db/
@@ -115,6 +115,7 @@ src/
 ├── i18n/                     # Chuỗi giao diện tiếng Việt (sẵn cho i18n sau này)
 ├── hooks/
 └── lib/                      # env (Zod), utils
+docs/                         # Tài liệu thiết kế (Character Fact Schema, quyết định domain)
 scripts/db-check.ts           # pnpm db:check
 e2e/                          # Playwright specs
 ```
