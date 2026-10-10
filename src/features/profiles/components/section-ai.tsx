@@ -201,7 +201,7 @@ export function SectionAi({
                   )}
                   {!preview.configured && (
                     <p role="status" className="text-sm text-muted-foreground">
-                      {t.missing}
+                      {preview.configurationIssues.map((issue) => t.errors[issue]).join(" ")}
                     </p>
                   )}
                   {preview.empty && (

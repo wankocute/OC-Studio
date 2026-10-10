@@ -17,10 +17,54 @@ const configured = () =>
   });
 
 describe("Gemini adapter and provider selection", () => {
+  it("identifies each missing or unsupported configuration variable without exposing credentials", () => {
+    for (const [source, issues] of [
+      [{}, ["geminiKeyMissing", "geminiModelMissing"]],
+      [{ GEMINI_API_KEY: "private-key" }, ["geminiModelMissing"]],
+      [{ GEMINI_MODEL: GEMINI_FREE_MODEL }, ["geminiKeyMissing"]],
+      [{ GEMINI_API_KEY: "private-key", GEMINI_MODEL: "other" }, ["geminiModelUnsupported"]],
+      [{ AI_PROVIDER: "openai" }, ["openaiKeyMissing", "openaiModelMissing"]],
+    ] as const) {
+      const status = aiConfiguration(parseServerEnv(source));
+      expect(status.configurationIssues).toEqual(issues);
+      expect(status.configured).toBe(false);
+      expect(JSON.stringify(status)).not.toContain("private-key");
+    }
+    expect(
+      aiConfiguration(
+        parseServerEnv({
+          AI_PROVIDER: " gemini ",
+          GEMINI_API_KEY: " private-key ",
+          GEMINI_MODEL: ` ${GEMINI_FREE_MODEL} `,
+        }),
+      ).configured,
+    ).toBe(true);
+  });
+  it("recognizes Google's API_KEY_INVALID reason without leaking provider details or retrying", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          error: {
+            message: "private-key and private facts",
+            details: [{ reason: "API_KEY_INVALID" }],
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    await expect(
+      createConfiguredWriter(configured(), request).generate("{}", "", signal()),
+    ).rejects.toThrow(/^geminiKeyRejected$/);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
   it("defaults to Gemini despite OpenAI credentials; matches preview facts and keeps key out of URL/body", async () => {
     const env = configured();
     expect(env.AI_PROVIDER).toBe("gemini");
-    expect(aiConfiguration(env)).toEqual({ provider: "gemini", configured: true });
+    expect(aiConfiguration(env)).toEqual({
+      provider: "gemini",
+      configured: true,
+      configurationIssues: [],
+    });
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValue(response('{"paragraphs":["An sinh tại Huế."]}'));
@@ -39,7 +83,8 @@ describe("Gemini adapter and provider selection", () => {
       writingRequest: "request",
     });
     expect(body.generationConfig.maxOutputTokens).toBe(AI_LIMITS.outputTokens);
-    expect(body.generationConfig.responseFormat.text.mimeType).toBe("application/json");
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
+    expect(body.generationConfig.responseFormat.text.mimeType).toBe("APPLICATION_JSON");
     expect(body.tools).toBeUndefined();
     expect(String(options?.body)).not.toContain("test-secret");
     expect(parseAiOutput(output).content[0]).toMatchObject({ type: "paragraph" });
@@ -47,10 +92,10 @@ describe("Gemini adapter and provider selection", () => {
   it("never falls back or retries 429/network/configuration failures", async () => {
     for (const [status, error] of [
       [429, "rateLimit"],
-      [400, "configuration"],
-      [401, "configuration"],
-      [403, "configuration"],
-      [404, "configuration"],
+      [400, "geminiRejected"],
+      [401, "geminiUnauthorized"],
+      [403, "geminiForbidden"],
+      [404, "geminiModelNotFound"],
       [500, "network"],
     ] as const) {
       const request = vi
@@ -77,7 +122,7 @@ describe("Gemini adapter and provider selection", () => {
       expect(aiConfiguration(env).configured).toBe(false);
       await expect(
         createConfiguredWriter(env, request).generate("{}", "", signal()),
-      ).rejects.toThrow("configuration");
+      ).rejects.toThrow(/^gemini(KeyMissing|ModelUnsupported)$/);
     }
     expect(request).not.toHaveBeenCalled();
   });

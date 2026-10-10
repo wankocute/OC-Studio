@@ -7,7 +7,22 @@ export class AiError extends Error {
   constructor(
     public readonly code:
       | "configuration"
+      | "geminiKeyMissing"
+      | "geminiModelMissing"
+      | "geminiModelUnsupported"
+      | "geminiKeyRejected"
+      | "geminiRequestRejected"
+      | "geminiRejected"
+      | "geminiPrecondition"
+      | "geminiUnauthorized"
+      | "geminiForbidden"
+      | "geminiModelNotFound"
+      | "openaiKeyMissing"
+      | "openaiModelMissing"
       | "network"
+      | "timeout"
+      | "dns"
+      | "tls"
       | "rateLimit"
       | "output"
       | "expired"
@@ -16,6 +31,12 @@ export class AiError extends Error {
       | "limit"
       | "busy"
       | "stale",
+    public readonly diagnostic?: {
+      httpStatus: number;
+      status?: string;
+      message?: string;
+      reasons: string[];
+    },
   ) {
     super(code);
   }
@@ -81,7 +102,8 @@ export function createOpenAiWriter(
 ): SectionWriter {
   return {
     async generate(factsJson, instruction, signal) {
-      if (!key || !model) throw new AiError("configuration");
+      if (!key) throw new AiError("openaiKeyMissing");
+      if (!model) throw new AiError("openaiModelMissing");
       try {
         const response = await request("https://api.openai.com/v1/responses", {
           method: "POST",

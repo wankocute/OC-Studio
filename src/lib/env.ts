@@ -43,9 +43,7 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
   return result.data;
 }
 
-let cachedEnv: ServerEnv | undefined;
-
 export function getServerEnv(): ServerEnv {
-  cachedEnv ??= parseServerEnv(process.env);
-  return cachedEnv;
+  // Next dev reloads process.env when .env.local changes; do not retain the first values.
+  return parseServerEnv(process.env);
 }

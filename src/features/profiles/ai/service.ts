@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { CharacterFacts, DefinitionContext } from "@/features/characters/domain";
 import { canonicalJson } from "@/features/characters/domain";
 import { AI_LIMITS } from "./constants";
+import { logAiRequest } from "./transport";
 import { selectSectionFacts, type AiSnapshot } from "./facts";
 import { AiError, parseAiOutput, type SectionWriter } from "./provider";
 import type { RichTextDocument } from "../domain";
@@ -104,6 +105,7 @@ export function createAiService() {
         if (Object.keys(selected.payload.values).length === 0) throw new AiError("empty");
         if (instruction.length > AI_LIMITS.instructionChars) throw new AiError("limit");
         const controller = new AbortController();
+        const startedAt = Date.now();
         let timeout: ReturnType<typeof setTimeout> | undefined;
         const output = await Promise.race([
           writer.generate(
@@ -113,8 +115,9 @@ export function createAiService() {
           ),
           new Promise<never>((_, reject) => {
             timeout = setTimeout(() => {
-              controller.abort();
-              reject(new AiError("network"));
+              logAiRequest("timeout", startedAt, { stage: "watchdog", errorName: "TimeoutError" });
+              controller.abort(new DOMException("AI deadline exceeded", "TimeoutError"));
+              reject(new AiError("timeout"));
             }, AI_LIMITS.timeoutMs);
           }),
         ]).finally(() => clearTimeout(timeout));

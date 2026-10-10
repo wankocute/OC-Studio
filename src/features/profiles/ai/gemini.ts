@@ -1,5 +1,7 @@
 import "server-only";
 import { z } from "zod";
+import { geminiResponseError } from "./gemini-errors";
+import { logAiRequest, transportFailure } from "./transport";
 import { AI_LIMITS } from "./constants";
 import { AiError, instructions, readProviderJson, type SectionWriter } from "./provider";
 
@@ -14,7 +16,11 @@ export function createGeminiWriter(
 ): SectionWriter {
   return {
     async generate(factsJson, instruction, signal) {
-      if (!key || model !== GEMINI_FREE_MODEL) throw new AiError("configuration");
+      if (!key) throw new AiError("geminiKeyMissing");
+      if (!model) throw new AiError("geminiModelMissing");
+      if (model !== GEMINI_FREE_MODEL) throw new AiError("geminiModelUnsupported");
+      const startedAt = Date.now();
+      let httpStatus: number | undefined;
       try {
         const response = await request(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -40,9 +46,11 @@ export function createGeminiWriter(
               generationConfig: {
                 candidateCount: 1,
                 maxOutputTokens: AI_LIMITS.outputTokens,
+                thinkingConfig: { thinkingLevel: "LOW" },
                 responseFormat: {
                   text: {
-                    mimeType: "application/json",
+                    // REST uses the protobuf enum, not the MIME string shown in SDK examples.
+                    mimeType: "APPLICATION_JSON",
                     schema: {
                       type: "object",
                       additionalProperties: false,
@@ -62,16 +70,9 @@ export function createGeminiWriter(
             }),
           },
         );
-        if (!response.ok) {
-          await response.body?.cancel();
-          throw new AiError(
-            response.status === 429
-              ? "rateLimit"
-              : [400, 401, 403, 404].includes(response.status)
-                ? "configuration"
-                : "network",
-          );
-        }
+        httpStatus = response.status;
+        logAiRequest("http", startedAt, { httpStatus });
+        if (!response.ok) throw await geminiResponseError(response, key, factsJson, instruction);
         const result = z
           .object({
             candidates: z
@@ -99,7 +100,14 @@ export function createGeminiWriter(
         }
       } catch (error) {
         if (error instanceof AiError) throw error;
-        throw new AiError("network");
+        const failure = transportFailure(error, signal.aborted);
+        logAiRequest(failure.kind, startedAt, {
+          errorName: failure.errorName,
+          causeCode: failure.causeCode,
+          httpStatus,
+          stage: "transport",
+        });
+        throw new AiError(failure.kind === "fetch" ? "network" : failure.kind);
       }
     },
   };

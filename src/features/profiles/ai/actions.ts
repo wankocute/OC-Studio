@@ -2,7 +2,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { getServerEnv } from "@/lib/env";
+import { getServerEnv, InvalidServerEnvError } from "@/lib/env";
 import { fail, failFromError, invalidInput, ok, type ActionResult } from "@/lib/action-result";
 import { messages } from "@/i18n";
 import { sectionLabel } from "../view";
@@ -28,8 +28,19 @@ async function load(sectionId: string) {
   };
 }
 function errorResult(error: unknown) {
+  if (error instanceof InvalidServerEnvError)
+    return fail({ code: "invalid_input", message: error.message });
   if (error instanceof AiError)
-    return fail({ code: "invalid_input", message: messages.profileAi.errors[error.code] });
+    return fail({
+      code: "invalid_input",
+      message: [
+        messages.profileAi.errors[error.code],
+        error.diagnostic &&
+          `Google: HTTP ${error.diagnostic.httpStatus}; ${error.diagnostic.status ?? ""}; ${error.diagnostic.reasons.join(", ")}; ${error.diagnostic.message ?? ""}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
   return failFromError(error);
 }
 export async function previewSectionAiAction(

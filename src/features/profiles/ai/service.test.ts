@@ -31,16 +31,18 @@ describe("section AI", () => {
       const input = context();
       const expired = service.preview(input, []);
       vi.advanceTimersByTime(AI_LIMITS.ttlMs + 1);
-      const generate = vi.fn(() => new Promise<unknown>(() => {}));
+      const generate = vi.fn<SectionWriter["generate"]>(() => new Promise<unknown>(() => {}));
       await expect(
         service.generate(expired.token, "", { generate }, async () => input),
       ).rejects.toThrow("expired");
       const preview = service.preview(input, []);
       const pending = service.generate(preview.token, "", { generate }, async () => input);
-      const rejected = expect(pending).rejects.toThrow("network");
+      const rejected = expect(pending).rejects.toThrow("timeout");
       await vi.advanceTimersByTimeAsync(AI_LIMITS.timeoutMs + 1);
       await rejected;
       expect(generate).toHaveBeenCalledTimes(1);
+      expect(generate.mock.calls[0]![2].aborted).toBe(true);
+      expect(generate.mock.calls[0]![2].reason.name).toBe("TimeoutError");
     } finally {
       vi.useRealTimers();
     }
@@ -211,7 +213,7 @@ describe("section AI", () => {
         "",
         new AbortController().signal,
       ),
-    ).rejects.toThrow("configuration");
+    ).rejects.toThrow("openaiKeyMissing");
     expect(request).not.toHaveBeenCalled();
     request.mockResolvedValueOnce(new Response("private provider error", { status: 429 }));
     await expect(
