@@ -73,6 +73,15 @@ describe("detachDeletedCharacter (Q5)", () => {
     expect(untouched.facts).toBe(sampleContemporary);
   });
 
+  it("keeps privacy metadata of the rewritten facts", () => {
+    const relationships = result.facts.values["relationships.entries"];
+    expect(relationships?.state === "specified" && relationships.sensitiveItemIds).toEqual([
+      "rel_me",
+    ]);
+    const events = result.facts.values["history.events"];
+    expect(events?.state === "specified" && events.sensitiveItemIds).toEqual(["evt_bo_roi_di"]);
+  });
+
   it("never re-links by name", () => {
     const again = detachDeletedCharacter(
       result.facts,

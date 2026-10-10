@@ -1,25 +1,26 @@
 # Character Domain — Quyết định thiết kế
 
-> **Trạng thái:** 12 quyết định nghiệp vụ Q1–Q12 **đã được người dùng xác nhận** (TASK 02.1) và
-> được phản ánh trong `schemaVersion: 2`. Đặc tả: [character-fact-schema.md](./character-fact-schema.md).
+> **Trạng thái:** 12 quyết định nghiệp vụ Q1–Q12 **đã được người dùng xác nhận** (TASK 02.1);
+> SEN-01..03 được xác nhận ở TASK 03 (mục 10). Phiên bản hiện tại: `schemaVersion: 3`.
+> Lưu trữ: [database-design.md](./database-design.md). Đặc tả: [character-fact-schema.md](./character-fact-schema.md).
 > Mã: `src/features/characters/domain/`.
 
 ## 1. Bảng quyết định Q1–Q12
 
-| #   | Quyết định đã xác nhận                                                 | Trạng thái                                                     | Triển khai                                                                                                                                    |
-| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Q1  | Trường tùy chỉnh có hai phạm vi: riêng nhân vật và dùng chung thư viện | **Implemented** (domain) · lưu trữ: _deferred_ TASK 03         | `custom.*`/`cg_*` vs `lib.*`/`lg_*`; `createFieldResolver`; `DefinitionContext`; `libraryDefinitionsSchema`; `version`; `findBreakingChanges` |
-| Q2  | `displayName` bắt buộc, độc lập                                        | **Implemented**                                                | Không đồng bộ với trường tên; UI gợi ý: _deferred_ (editor)                                                                                   |
-| Q3  | Thêm `explicit_none`                                                   | **Implemented**                                                | Types, schema, `normalizeFactInput`, fingerprint, migration, fixtures                                                                         |
-| Q4  | Chỉ gợi ý quan hệ ngược                                                | **Implemented** (contract) · UI: _deferred_                    | `suggestReverseRelationships`                                                                                                                 |
-| Q5  | Xóa OC ⇒ tham chiếu thành unlinked, giữ tên và dữ kiện                 | **Implemented** (domain) · thao tác xóa DB: _deferred_ TASK 03 | `detachedFrom`; `detachDeletedCharacter`; `collectLinkedReferences`                                                                           |
-| Q6  | Dữ kiện nhạy cảm mặc định không gửi AI                                 | **Implemented** (contract) · tích hợp AI: _deferred_           | `sensitivity`; `selectFactsForAi`                                                                                                             |
-| Q7  | Editor Cơ bản / Nâng cao                                               | **Implemented** (metadata) · editor: _deferred_                | `BASIC_FIELD_KEYS`; `getFieldVisibility`                                                                                                      |
-| Q8  | Tách bản dạng giới và giới tính sinh học                               | **Implemented**                                                | `identity.gender_identity`, `identity.biological_sex`; `identity.gender` deprecated                                                           |
-| Q9  | Ngôn ngữ nguồn ở cấp nhân vật                                          | **Implemented**                                                | `sourceLanguage?` (BCP 47 dạng chuẩn); `normalizeLanguageInput`                                                                               |
-| Q10 | Truy vết theo khóa trường + id phần tử                                 | **Implemented**                                                | Ngữ nghĩa định nghĩa trong fingerprint; snapshot có phạm vi; xử lý khác thuật toán                                                            |
-| Q11 | Giữ giới hạn, tập trung hằng số                                        | **Implemented**                                                | `LIMITS` trong `constants.ts`; thông báo nêu giới hạn                                                                                         |
-| Q12 | Mẫu hồ sơ chỉ đổi cách trình bày                                       | **Implemented** (contract) · hệ thống Templates: _deferred_    | `TemplatePresentation`; `createTemplatePresentationSchema`                                                                                    |
+| #   | Quyết định đã xác nhận                                                 | Trạng thái                                                     | Triển khai                                                                                                                                      |
+| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Trường tùy chỉnh có hai phạm vi: riêng nhân vật và dùng chung thư viện | **Implemented** (domain) · lưu trữ: _deferred_ TASK 03         | `custom.*`/`cg_*` vs `lib.*`/`lg_*`; `createFieldResolver`; `DefinitionContext`; `libraryDefinitionsSchema`; `version`; `findBreakingChanges`   |
+| Q2  | `displayName` bắt buộc, độc lập                                        | **Implemented**                                                | Không đồng bộ với trường tên; UI gợi ý: _deferred_ (editor)                                                                                     |
+| Q3  | Thêm `explicit_none`                                                   | **Implemented**                                                | Types, schema, `normalizeFactInput`, fingerprint, migration, fixtures                                                                           |
+| Q4  | Chỉ gợi ý quan hệ ngược                                                | **Implemented** (contract) · UI: _deferred_                    | `suggestReverseRelationships`                                                                                                                   |
+| Q5  | Xóa OC ⇒ tham chiếu thành unlinked, giữ tên và dữ kiện                 | **Implemented** (domain) · thao tác xóa DB: _deferred_ TASK 03 | `detachedFrom`; `detachDeletedCharacter`; `collectLinkedReferences`                                                                             |
+| Q6  | Dữ kiện nhạy cảm mặc định không gửi AI                                 | **Implemented** (contract) · tích hợp AI: _deferred_           | `sensitivity`; `selectFactsForAi`; SEN-01/02 (TASK 03): `identity.biological_sex`, `background.family`, `sensitiveItemIds`, `findSensitiveRefs` |
+| Q7  | Editor Cơ bản / Nâng cao                                               | **Implemented** (metadata) · editor: _deferred_                | `BASIC_FIELD_KEYS`; `getFieldVisibility`                                                                                                        |
+| Q8  | Tách bản dạng giới và giới tính sinh học                               | **Implemented**                                                | `identity.gender_identity`, `identity.biological_sex`; `identity.gender` deprecated                                                             |
+| Q9  | Ngôn ngữ nguồn ở cấp nhân vật                                          | **Implemented**                                                | `sourceLanguage?` (BCP 47 dạng chuẩn); `normalizeLanguageInput`                                                                                 |
+| Q10 | Truy vết theo khóa trường + id phần tử                                 | **Implemented**                                                | Ngữ nghĩa định nghĩa trong fingerprint; snapshot có phạm vi; xử lý khác thuật toán                                                              |
+| Q11 | Giữ giới hạn, tập trung hằng số                                        | **Implemented**                                                | `LIMITS` trong `constants.ts`; thông báo nêu giới hạn                                                                                           |
+| Q12 | Mẫu hồ sơ chỉ đổi cách trình bày                                       | **Implemented** (contract) · hệ thống Templates: _deferred_    | `TemplatePresentation`; `createTemplatePresentationSchema`                                                                                      |
 
 Không có quyết định nào ở trạng thái _Needs clarification_; các câu hỏi chi tiết mới phát sinh nằm ở [mục 8](#8-câu-hỏi-mở).
 
@@ -152,6 +153,8 @@ Contract chỉ gồm `hiddenFields`, `fieldOrder`, `groupPlacement`, `libraryFie
 
 ## 7. Phiên bản schema và tương thích
 
+> TASK 03 tăng tiếp lên `schemaVersion: 3` cho metadata nhạy cảm theo phần tử — xem mục 10.
+
 **Tăng lên `schemaVersion: 2`** vì: thêm trạng thái mới (`explicit_none`), thêm thuộc tính cấp sheet (`sourceLanguage`), thay đổi ngữ nghĩa trường giới tính. Một bộ đọc v1 sẽ hiểu sai hoặc từ chối dữ liệu v2.
 
 | Thay đổi                                                              | Phá vỡ tương thích?                     | Xử lý                                                  |
@@ -169,22 +172,23 @@ Migration không thể xác định ⇒ không đoán: giới tính và `not_app
 
 ## 8. Câu hỏi mở
 
-### Cho TASK 03 (PostgreSQL & Drizzle)
+### Đã giải quyết ở TASK 03
 
-1. **Lưu định nghĩa thư viện:** bảng riêng (`library_field_definitions` có `key`, `version`, `definition jsonb`) và cổng `findBreakingChanges` khi cập nhật.
-2. **Xóa định nghĩa thư viện đang được dùng:** chặn xóa, hay chuyển thành deprecated? (Domain hiện báo lỗi "thiếu định nghĩa" nếu bị xóa.)
-3. **Xóa OC:** chạy `detachDeletedCharacter` trên mọi nhân vật tham chiếu trong cùng transaction; cần chỉ mục tham chiếu (trích từ `collectLinkedReferences`) để tìm nhanh.
-4. **Khôi phục OC đã xóa (nếu có thùng rác):** có đề xuất liên kết lại các tham chiếu có `detachedFrom.characterId` trùng không? Domain **không** tự liên kết lại; mọi liên kết lại phải do người dùng xác nhận.
-5. `displayName` lưu ở cột riêng (để sắp xếp/tìm kiếm) và trong JSON — nguồn nào là gốc, và đồng bộ ra sao.
-6. Có cần `revision` cấp bản ghi cho optimistic locking (khác mục đích với fingerprint).
-7. Migration dữ liệu khi đọc (`migrateCharacterFacts` lúc load) hay chạy một lần cho toàn bộ bảng; cách hiển thị danh sách `review` cho người dùng.
+| Câu hỏi (TASK 02.1)                       | Quyết định — chi tiết trong [database-design.md](./database-design.md)                                                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Lưu định nghĩa thư viện                   | Bảng `library_field_definitions` (`key`, `version`, `definition jsonb`, `status`) + `library_field_groups`; mọi cập nhật đi qua `findBreakingChanges`                                                              |
+| Xóa định nghĩa đang dùng                  | Không xóa: chỉ `deprecated` (vẫn phân giải được, không cho dùng mới). Chỉ xóa được định nghĩa `active` **chưa từng** được lưu ở nhân vật nào (kể cả đã soft delete); khóa deprecated không bao giờ được giải phóng |
+| Xóa OC                                    | `softDelete` trong một transaction: khóa đích, tìm nguồn qua `character_references`, khóa nguồn, `detachDeletedCharacter`, ghi lại facts + index, soft delete đích                                                 |
+| `displayName` lưu ở đâu                   | Cột `display_name` là nguồn duy nhất; JSONB không chứa `displayName` (CHECK constraint)                                                                                                                            |
+| `schemaVersion` lưu ở đâu                 | Cột `schema_version`; JSONB không chứa `schemaVersion` (CHECK constraint)                                                                                                                                          |
+| `revision`                                | Có — optimistic locking cho mọi thay đổi facts/displayName                                                                                                                                                         |
+| Migration JSON khi đọc hay chạy hàng loạt | Khi đọc (trong bộ nhớ, không ghi) + ghi phiên bản mới ở lần cập nhật kế tiếp; `pendingMigration.review` trả về cho UI                                                                                              |
 
-### Cho các task sau
+### Còn mở
 
-- Độ nhạy cảm theo **từng phần tử** (một sự kiện cụ thể) — hiện chỉ theo trường/trường con.
-- Lưu lựa chọn "cho phép gửi trường nhạy cảm" trong một phiên làm việc (domain chỉ nhận theo request).
-- Danh sách `BASIC_FIELD_KEYS` là đề xuất — điều chỉnh khi thiết kế editor.
-- Trường có sẵn nào nữa nên nhạy cảm (ví dụ `identity.biological_sex`, `background.family`)? Hiện chỉ đánh dấu 3 trường + 1 trường con.
+- **Khôi phục OC đã xóa:** chưa có thao tác restore. Khi làm: không tự liên kết lại; có thể _gợi ý_ các tham chiếu có `detachedFrom.characterId` trùng với OC được khôi phục, người dùng xác nhận từng cái.
+- **Review sau migration bị mất khi ghi tự động:** nếu một OC v1 bị viết lại vì OC nó tham chiếu bị xóa, `not_applicable_may_mean_none` không còn được tính lại (dữ liệu vẫn nguyên vẹn; `identity.gender` vẫn là trường deprecated hiển thị `hidden_with_data`). Cần quyết định có lưu danh sách review hay không khi làm UI.
+- Lưu lựa chọn "cho phép gửi dữ kiện nhạy cảm" trong một phiên làm việc (domain chỉ nhận theo request).
 - UI gợi ý `displayName` và quan hệ ngược.
 
 ## 9. Giả định kỹ thuật
@@ -194,3 +198,35 @@ Migration không thể xác định ⇒ không đoán: giới tính và `not_app
 - Caller luôn truyền **cùng** `DefinitionContext` cho validation, fingerprint, lọc AI và migration của một nhân vật.
 - Thời điểm (`detachedFrom.at`) do caller cung cấp; domain không đọc đồng hồ.
 - Domain chỉ phụ thuộc `zod`; test kiểm tra không import React/Next/Drizzle/pg/AI SDK/alias `@/`.
+
+## 10. Quyết định về dữ kiện nhạy cảm (TASK 03)
+
+### SEN-01 — Trường có sẵn nhạy cảm
+
+Đánh giá từng trường, **không** đánh dấu cả nhóm `background`:
+
+| Trường                                                                                    | Nhạy cảm?          | Lý do                                                                              |
+| ----------------------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------- |
+| `identity.biological_sex`                                                                 | **Có**             | Theo xác nhận của người dùng; thông tin cơ thể riêng tư, độc lập với bản dạng giới |
+| `background.family`                                                                       | **Có**             | Văn bản tự do thường chứa hoàn cảnh gia đình riêng tư (ly hôn, mất mát, bạo lực…)  |
+| `background.birthplace`, `hometown`, `culture`                                            | Không              | Thông tin bối cảnh, ít rủi ro                                                      |
+| `background.upbringing`, `education`, `training`, `economic_status`                       | Không              | Thông tin tiểu sử phổ biến; phần riêng tư cụ thể có thể ghi ở trường nhạy cảm khác |
+| `relationships.entries` (kể cả quan hệ gia đình)                                          | Không ở cấp trường | Quan hệ là dữ kiện cốt lõi; quan hệ riêng tư đánh dấu **theo phần tử** (SEN-02)    |
+| `psychology.wounds`, `emotional_triggers`, `coping_mechanisms`; `appearance.scars.origin` | Có (từ TASK 02.1)  | —                                                                                  |
+
+### SEN-02 — Độ nhạy cảm theo phần tử
+
+| Phương án                                                                 | Đánh giá                                                                                                                                      |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Thuộc tính trong phần tử (`{ id, title, sensitive: true }`)               | Trộn metadata vào nội dung; mọi object item phải có thêm khóa; JSON chưa lọc gửi đi sẽ mang cờ như một "dữ kiện"                              |
+| Bản đồ cấp sheet `privacy: { refs: [...] }`                               | Tách biệt nhưng xa dữ kiện: xóa phần tử dễ để lại ref mồ côi ở nơi khác                                                                       |
+| **`sensitiveItemIds` trong envelope `specified` của chính trường** (chọn) | Nằm cạnh giá trị nó mô tả, ngoài nội dung phần tử; validate được (id phải tồn tại); xóa/sửa trường thì metadata đi cùng; JSONB lưu nguyên vẹn |
+
+- Chính sách: trường nhạy cảm ⊃ phần tử nhạy cảm ⊃ trường con nhạy cảm. Quyền theo trường mở mọi phần tử của nó; quyền theo phần tử chỉ mở phần tử đó và không vượt qua được trường cha nhạy cảm.
+- Fingerprint **không** tính metadata riêng tư (đánh dấu không làm nội dung "lỗi thời"); `findSensitiveRefs` phát hiện nội dung đã dùng dữ kiện nay trở thành nhạy cảm — tách hai câu hỏi "nội dung còn đúng không?" và "nội dung còn được phép không?".
+- **Tăng `schemaVersion` lên 3**: thuộc tính mới là tùy chọn, nhưng schema strict v2 từ chối nó, nên dữ liệu phải được đánh phiên bản rõ ràng. Migration v2 → v3 chỉ đổi số phiên bản; dữ liệu tự nhận v2 mà có `sensitiveItemIds` bị từ chối.
+- Lỗi phát hiện khi tích hợp: `detachDeletedCharacter` từng dựng lại envelope và làm mất `sensitiveItemIds`; đã sửa (giữ nguyên envelope, chỉ thay `value`) và có test ở cả domain lẫn database.
+
+### SEN-03 — Trường Cơ bản
+
+Giữ nguyên 31 trường `BASIC_FIELD_KEYS`.

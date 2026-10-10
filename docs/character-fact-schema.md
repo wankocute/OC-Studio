@@ -1,6 +1,6 @@
 # Character Fact Schema
 
-> **Phiên bản schema:** `schemaVersion: 2` (TASK 02.1). Các quyết định Q1–Q12 đã được người dùng
+> **Phiên bản schema:** `schemaVersion: 3` (TASK 03 — bổ sung SEN-01/02 trên nền v2 của TASK 02.1). Các quyết định Q1–Q12 đã được người dùng
 > xác nhận; lý do và phần còn mở: [character-domain-decisions.md](./character-domain-decisions.md).
 > Mã nguồn: `src/features/characters/domain/`. Dữ liệu v1 (TASK 02) được chuyển bằng
 > `migrateCharacterFacts` (mục 12).
@@ -30,7 +30,7 @@
 
 ```ts
 type CharacterFacts = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   displayName: string; // bắt buộc, độc lập với các trường tên (Q2)
   sourceLanguage?: string; // BCP 47 dạng chuẩn ("vi", "en-US"); vắng = chưa biết (Q9)
   values: Record<FieldKey, FactValue>; // khóa vắng mặt = unspecified
@@ -42,7 +42,7 @@ type CharacterFacts = {
 };
 
 type FactValue =
-  | { state: "specified"; value: FactData }
+  | { state: "specified"; value: FactData; sensitiveItemIds?: ItemId[] } // metadata riêng tư (SEN-02)
   | { state: "explicit_none" }
   | { state: "not_applicable" };
 ```
@@ -192,7 +192,7 @@ Thống kê: **9 nhóm, 6 nhóm con, 87 định nghĩa trường** (86 đang dù
 | `identity.birth_date`              | Ngày sinh              | `date`          | Một   |          |          | ✓      | ngày từng phần hoặc văn bản                                                                               |
 | `identity.gender` **(deprecated)** | Giới tính (dữ liệu cũ) | `single_select` | Một   |          |          |        | lựa chọn: `female` (Nữ), `male` (Nam), `non_binary` (Phi nhị nguyên); cho phép `other`                    |
 | `identity.gender_identity`         | Bản dạng giới          | `single_select` | Một   |          |          | ✓      | lựa chọn: `woman` (Nữ), `man` (Nam), `non_binary` (Phi nhị nguyên), `agender` (Vô giới); cho phép `other` |
-| `identity.biological_sex`          | Giới tính sinh học     | `single_select` | Một   |          |          |        | lựa chọn: `female` (Nữ), `male` (Nam), `intersex` (Liên giới tính); cho phép `other`                      |
+| `identity.biological_sex`          | Giới tính sinh học     | `single_select` | Một   |          | ✓        |        | lựa chọn: `female` (Nữ), `male` (Nam), `intersex` (Liên giới tính); cho phép `other`                      |
 | `identity.pronouns`                | Đại từ xưng hô         | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
 | `identity.nationality`             | Quốc tịch              | `short_text`    | Một   | ✓        |          |        | ≤ 300 ký tự                                                                                               |
 | `identity.species`                 | Chủng loài             | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
@@ -327,7 +327,7 @@ Thống kê: **9 nhóm, 6 nhóm con, 87 định nghĩa trường** (86 đang dù
 | ---------------------------- | -------------------------- | --------------- | --- | -------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `background.birthplace`      | Nơi sinh                   | `short_text`    | Một |          |          |        | ≤ 300 ký tự                                                                                                                                                |
 | `background.hometown`        | Quê quán                   | `short_text`    | Một |          |          | ✓      | ≤ 300 ký tự                                                                                                                                                |
-| `background.family`          | Hoàn cảnh gia đình         | `long_text`     | Một |          |          | ✓      | ≤ 20.000 ký tự                                                                                                                                             |
+| `background.family`          | Hoàn cảnh gia đình         | `long_text`     | Một |          | ✓        | ✓      | ≤ 20.000 ký tự                                                                                                                                             |
 | `background.upbringing`      | Môi trường trưởng thành    | `long_text`     | Một |          |          |        | ≤ 20.000 ký tự                                                                                                                                             |
 | `background.education`       | Học vấn                    | `long_text`     | Một | ✓        |          |        | ≤ 20.000 ký tự                                                                                                                                             |
 | `background.training`        | Quá trình đào tạo          | `long_text`     | Một | ✓        |          |        | ≤ 20.000 ký tự                                                                                                                                             |
@@ -393,14 +393,16 @@ Thống kê: **9 nhóm, 6 nhóm con, 87 định nghĩa trường** (86 đang dù
 ## 9. Dữ kiện nhạy cảm và AI (Q6)
 
 - Định nghĩa trường và trường con có `sensitivity: "standard" | "sensitive"` (mặc định `standard`). Trường tùy chỉnh riêng và dùng chung đều đánh dấu được.
-- Trường có sẵn nhạy cảm: `psychology.wounds`, `psychology.emotional_triggers`, `psychology.coping_mechanisms`; trường con `appearance.scars.origin`.
+- Trường có sẵn nhạy cảm (SEN-01, đánh giá từng trường): `identity.biological_sex`, `background.family`, `psychology.wounds`, `psychology.emotional_triggers`, `psychology.coping_mechanisms`; trường con `appearance.scars.origin`. Các trường khác của nhóm `background` (nơi sinh, quê quán, môi trường trưởng thành, học vấn, đào tạo, điều kiện kinh tế, văn hóa) **không** mặc định nhạy cảm; `relationships.entries` (kể cả quan hệ gia đình) dùng độ nhạy cảm theo phần tử.
+- **Theo từng phần tử (SEN-02):** envelope `specified` của trường danh sách (`text_list`, `character_ref_list`, `object_list`) có thể mang `sensitiveItemIds` — danh sách `id` phần tử người dùng đánh dấu nhạy cảm. Đây là **metadata**, nằm ngoài nội dung phần tử (AI không thể đọc nó như dữ kiện), được lưu/đọc/xuất/nhập cùng dữ kiện. Validation: chỉ trên trường danh sách, mỗi id phải tồn tại trong `value`, không trùng, mảng không rỗng.
 - `selectFactsForAi(facts, { allowSensitive }, context)` trả về bản sao chỉ chứa dữ kiện được phép gửi, kèm danh sách `excluded`:
   - Mặc định **loại** mọi dữ kiện nhạy cảm, ở **mọi trạng thái** (kể cả `explicit_none`, `not_applicable`).
-  - Chỉ đưa vào khi `allowSensitive` chứa khóa trường. Quyền là **tham số của từng lần gọi**, không được đọc/ghi trong fact sheet ⇒ không tự duy trì sau một lần đồng ý. Có giá trị ≠ đồng ý.
+  - Chỉ đưa vào khi `allowSensitive` chứa khóa trường (mở cả trường, mọi phần tử và trường con) hoặc ref phần tử `field[itemId]` (chỉ mở phần tử đó, và chỉ khi bản thân trường **không** nhạy cảm — bảo vệ của trường cha luôn áp dụng trước). Quyền là **tham số của từng lần gọi**, không được đọc/ghi trong fact sheet ⇒ không tự duy trì sau một lần đồng ý. Có giá trị ≠ đồng ý.
   - **Kế thừa:** trường nhạy cảm ⇒ toàn bộ giá trị (mọi phần tử, mọi trường con). Trường con nhạy cảm ⇒ bị gỡ khỏi từng phần tử; phần tử không còn dữ kiện thì bị bỏ. Trường con nhạy cảm không được là `required`.
   - Dữ kiện không phân giải được định nghĩa ⇒ bị loại (không biết chính sách).
   - Định nghĩa của trường tùy chỉnh bị loại cũng bị gỡ khỏi bản sao (tránh lộ qua nhãn).
-- Chưa có độ nhạy cảm theo từng phần tử (ví dụ chỉ một sự kiện nhạy cảm) — xem câu hỏi mở.
+  - Phần tử được đánh dấu bị loại; các phần tử khác của cùng danh sách được giữ. Bản sao **không bao giờ** chứa `sensitiveItemIds`.
+- **Fingerprint và nội dung lỗi thời:** `sensitiveItemIds` không phải nội dung nên **không** làm đổi fingerprint (đánh dấu nhạy cảm không làm nội dung "lỗi thời"). Thay vào đó, `findSensitiveRefs(refs, facts, context)` cho biết những dữ kiện mà một nội dung đã dùng nay **đã trở thành nhạy cảm** (trường, phần tử hoặc trường con) — để task AI đánh dấu nội dung cần xem lại về quyền riêng tư.
 
 ## 10. Trình bày: Cơ bản / Nâng cao và mẫu hồ sơ (Q7, Q12)
 
@@ -442,19 +444,21 @@ Mẫu **không thể** đổi khóa, đổi kiểu, chứa giá trị (schema st
 
 |                      | v1 (TASK 02)              | v2 (TASK 02.1)                                                                      |
 | -------------------- | ------------------------- | ----------------------------------------------------------------------------------- |
-| `schemaVersion`      | `1`                       | `2`                                                                                 |
+| `schemaVersion`      | `1`                       | `2` (v3, TASK 03: + `sensitiveItemIds?` trong envelope `specified`)                 |
 | Trạng thái           | specified, not_applicable | + `explicit_none`                                                                   |
 | Ngôn ngữ nguồn       | —                         | `sourceLanguage?`                                                                   |
 | Giới tính            | `identity.gender`         | `identity.gender_identity`, `identity.biological_sex`; `identity.gender` deprecated |
 | Tham chiếu unlinked  | `name`, `note?`           | + `detachedFrom?`                                                                   |
 | Định nghĩa tùy chỉnh | `custom.*`                | + `sensitivity?`, `allowExplicitNone?`; + phạm vi `lib.*` ngoài sheet               |
 
-- `parseCharacterFacts` chỉ nhận v2. Dữ liệu v1 phải qua `migrateCharacterFacts(input, context)`:
-  - `current` — đã là v2 hợp lệ.
-  - `migrated` — v1 → v2: sao chép nguyên vẹn, chỉ đổi `schemaVersion` (v1 là tập con của v2). Kèm danh sách `review`:
+- **v3** chỉ thêm metadata tùy chọn `sensitiveItemIds`, nhưng vẫn tăng phiên bản vì schema strict của v2 sẽ từ chối thuộc tính này — dữ liệu v3 phải được nhận diện rõ ràng. SEN-01 (đổi độ nhạy cảm của định nghĩa có sẵn) không đổi cấu trúc dữ liệu.
+- `parseCharacterFacts` chỉ nhận phiên bản hiện tại (v3). Dữ liệu cũ phải qua `migrateCharacterFacts(input, context)`:
+  - `current` — đã là v3 hợp lệ.
+  - `migrated` — v1/v2 → v3: sao chép nguyên vẹn, chỉ đổi `schemaVersion` (v1 ⊂ v2 ⊂ v3). Với nguồn v1 kèm danh sách `review`:
     - `ambiguous_gender` — có `identity.gender`; **không** tự chuyển sang trường mới.
     - `not_applicable_may_mean_none` — `not_applicable` ở trường nay cho phép `explicit_none`; **không** tự đổi.
-  - `rejected` — không phải object, phiên bản không hỗ trợ, "v1" chứa tính năng chỉ có ở v2, hoặc dữ liệu v1 không hợp lệ (kèm `issues`; không sửa hộ).
+  - `rejected` — không phải object, phiên bản không hỗ trợ, dữ liệu tự nhận là phiên bản cũ nhưng chứa tính năng của phiên bản sau, hoặc dữ liệu nguồn không hợp lệ (kèm `issues`; không sửa hộ).
+- Trong database, `schema_version` là cột riêng; repository migrate **trong bộ nhớ** khi đọc (không ghi) và lưu phiên bản hiện tại ở lần cập nhật kế tiếp — xem `docs/database-migrations.md`.
 - Đầu vào không bao giờ bị thay đổi.
 
 ## 13. Truy vết và phát hiện thay đổi (Q10)
@@ -466,6 +470,7 @@ Chi tiết: [character-domain-decisions.md § 4](./character-domain-decisions.md
 - `createFactSnapshot(current, scope)` ghi lại phạm vi dữ kiện đã cung cấp + fingerprint; `assessFactSnapshot(snapshot, current)` → `fresh` | `outdated { changed, removed, added }` | `incomparable` (khác thuật toán).
 - Dữ kiện **mới được thêm vào phạm vi** (ví dụ vừa nhập màu mắt) cũng làm nội dung `outdated`.
 - Fingerprint khác thuật toán **không bao giờ** được so sánh trực tiếp; `findStaleRefs` coi chúng là lỗi thời (thận trọng).
+- Metadata riêng tư (`sensitiveItemIds`) không thuộc nội dung nên không ảnh hưởng fingerprint; dùng `findSensitiveRefs` (mục 9) để phát hiện nội dung đã dùng dữ kiện nay trở thành nhạy cảm.
 
 ## 14. Trường hợp đặc biệt
 
@@ -494,13 +499,13 @@ Chi tiết: [character-domain-decisions.md § 4](./character-domain-decisions.md
 
 > ⚠️ Dữ liệu minh họa, không phải dữ liệu người dùng. Bản đầy đủ:
 > `src/features/characters/__tests__/fixtures/sample-characters.ts` (A — hiện đại, B — fantasy, C — tối giản, kèm thư viện mẫu)
-> và `historical-v1.ts` (bản v1 của TASK 02, dùng để kiểm tra migration).
+> `historical-v1.ts` / `historical-v2.ts` (bản v1 của TASK 02 và v2 của TASK 02.1, dùng để kiểm tra migration).
 
 **Character C — tối giản (hợp lệ, ngôn ngữ chưa biết):**
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "displayName": "Khải",
   "values": {
     "personality.core_traits": {
@@ -515,11 +520,11 @@ Chi tiết: [character-domain-decisions.md § 4](./character-domain-decisions.md
 }
 ```
 
-**Trích Character A — tên hiển thị độc lập, xác nhận không có, trường dùng chung, ba loại tham chiếu:**
+**Trích Character A — tên hiển thị độc lập, xác nhận không có, trường dùng chung, ba loại tham chiếu, một quan hệ nhạy cảm theo phần tử:**
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "displayName": "Ngọc",
   "sourceLanguage": "vi",
   "values": {
@@ -555,7 +560,8 @@ Chi tiết: [character-domain-decisions.md § 4](./character-domain-decisions.md
           },
           "type": { "option": "mentor" }
         }
-      ]
+      ],
+      "sensitiveItemIds": ["rel_me"]
     }
   }
 }
@@ -594,7 +600,7 @@ Chi tiết: [character-domain-decisions.md § 4](./character-domain-decisions.md
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "displayName": "Dạ Vân",
   "sourceLanguage": "vi",
   "values": {

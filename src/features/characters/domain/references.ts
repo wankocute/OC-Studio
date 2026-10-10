@@ -74,7 +74,8 @@ function mapFact(definition: FieldDefinition, key: string, fact: FactValue, map:
     default:
       value = mapLeaf(definition.kind, fact.value, key, map);
   }
-  return { state: "specified", value } as FactValue;
+  // Keep the rest of the envelope (e.g. sensitiveItemIds): only the content changes.
+  return { ...fact, value } as FactValue;
 }
 
 /** Visit every character reference; `map` may return a replacement. Returns a new sheet. */

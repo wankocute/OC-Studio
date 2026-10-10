@@ -272,7 +272,16 @@ export type FactState = "specified" | "unspecified" | "explicit_none" | "not_app
 
 /** A stored fact. */
 export type FactValue =
-  | { state: "specified"; value: FactData }
+  | {
+      state: "specified";
+      value: FactData;
+      /**
+       * Privacy metadata (SEN-02), not content: ids of list items the user marked sensitive.
+       * Only for list kinds (text_list, character_ref_list, object_list); every id must exist
+       * in `value`. Excluded from fingerprints and never sent to AI.
+       */
+      sensitiveItemIds?: ItemId[];
+    }
   | { state: "explicit_none" }
   | { state: "not_applicable" };
 

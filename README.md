@@ -2,7 +2,7 @@
 
 Ứng dụng web cá nhân để tạo, quản lý và biên tập hồ sơ nhân vật hư cấu (Original Characters) phục vụ viết truyện và roleplay.
 
-> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01) và mô hình dữ kiện nhân vật `schemaVersion: 2` ở tầng domain (TASK 02, 02.1 — xem `docs/`). Chưa có bảng database, CRUD nhân vật, editor, AI hay xuất PDF.
+> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02, 02.1, 03) và tầng lưu trữ PostgreSQL + repositories (TASK 03) — xem `docs/`. Chưa có giao diện CRUD nhân vật, editor, AI hay xuất PDF.
 
 ## Yêu cầu môi trường
 
@@ -52,15 +52,15 @@ pnpm install
 
 ### Migrations
 
-Schema Drizzle nằm ở `src/db/schema/`, migrations sinh ra ở `src/db/migrations/`. Hiện **chưa có bảng nào** — domain model đã được đặc tả trong `docs/character-fact-schema.md`; bảng và migrations thuộc TASK 03.
+Schema Drizzle ở `src/db/schema/` (10 bảng — [docs/database-design.md](./docs/database-design.md)), migrations ở `src/db/migrations/`. Quy trình đầy đủ, sao lưu và database test: [docs/database-migrations.md](./docs/database-migrations.md).
 
 ```bash
-pnpm db:generate   # sinh migration SQL từ schema
-pnpm db:migrate    # áp dụng migration vào DATABASE_URL
+pnpm db:migrate    # áp dụng migration vào DATABASE_URL (sao lưu trước nếu đã có dữ liệu)
+pnpm db:generate --name=<mô_tả>   # sinh migration SQL mới từ schema — luôn đọc lại file SQL
 pnpm db:studio     # Drizzle Studio
 ```
 
-Luôn xem lại file SQL được sinh ra trước khi chạy `db:migrate`.
+Không dùng `drizzle-kit push` cho database thật.
 
 ## Chạy ứng dụng
 
@@ -75,9 +75,12 @@ pnpm build && pnpm start   # bản production
 pnpm typecheck     # next typegen + tsc --noEmit
 pnpm lint          # ESLint
 pnpm format:check  # Prettier (pnpm format để tự sửa)
-pnpm test          # Vitest (unit)
+pnpm test          # Vitest (unit) — không cần PostgreSQL
+pnpm test:integration  # Vitest với PostgreSQL thật, trên database riêng *_test
 pnpm test:e2e      # Playwright (tự khởi động pnpm dev nếu chưa chạy)
 ```
+
+Integration tests dùng `TEST_DATABASE_URL` (đặt trong `.env.test.local`) hoặc tự suy ra từ `DATABASE_URL` bằng cách thêm hậu tố `_test` vào tên database (`oc_studio` → `oc_studio_test`). Database test được tạo tự động nếu chưa có; helper từ chối chạy trên database không kết thúc bằng `_test`.
 
 Lần đầu chạy E2E cần cài trình duyệt: `pnpm exec playwright install chromium`.
 
@@ -102,25 +105,31 @@ src/
 │   ├── shared/               # PageHeader, EmptyState, UnavailableAction
 │   └── providers/            # ThemeProvider
 ├── features/                 # Module theo nghiệp vụ
-│   ├── characters/           #   Character Fact domain v2 (types, Zod schemas, definitions, migration,
-│   │                         #   traceability, AI fact filtering, presentation rules), CharacterCard
+│   ├── characters/
+│   │   ├── domain/           #   Character Fact domain v3 (types, Zod schemas, definitions, migration,
+│   │   │                     #   traceability, AI fact filtering, presentation rules) — chỉ phụ thuộc zod
+│   │   ├── server/           #   Repositories: nhân vật, định nghĩa trường dùng chung (server-only)
+│   │   └── components/       #   CharacterCard
+│   ├── library/server/       #   Repositories: tags, collections, media metadata
 │   ├── settings/             #   ThemeSelector, theme options
 │   └── system-status/        #   Trạng thái ứng dụng / database
 ├── db/
 │   ├── index.ts              # Drizzle + pg Pool (server-only, lazy)
 │   ├── health.ts             # checkDatabaseHealth()
 │   ├── errors.ts             # Phân loại lỗi kết nối
-│   ├── schema/               # Drizzle schema (chưa có bảng)
-│   └── migrations/
+│   ├── repository-errors.ts  # RepositoryError (lỗi có cấu trúc)
+│   ├── schema/               # Drizzle schema: characters, library-definitions, library
+│   └── migrations/           # SQL migrations (drizzle-kit generate)
 ├── config/navigation.ts      # Định nghĩa menu
 ├── i18n/                     # Chuỗi giao diện tiếng Việt (sẵn cho i18n sau này)
 ├── hooks/
-└── lib/                      # env (Zod), utils
-docs/                         # Tài liệu thiết kế (Character Fact Schema, quyết định domain)
+├── lib/                      # env (Zod), utils
+└── test/                     # Helpers cho integration tests (database *_test)
+docs/                         # Thiết kế: dữ kiện nhân vật, quyết định domain, database, migrations
 scripts/db-check.ts           # pnpm db:check
 e2e/                          # Playwright specs
 ```
 
-Các thư mục `features/profiles`, `features/collections`, `features/ai-generation`, `features/templates`, `types/` sẽ được tạo khi có code thực sự.
+Các thư mục `features/profiles`, `features/ai-generation`, `features/templates`, `types/` sẽ được tạo khi có code thực sự.
 
 Quy ước code chi tiết: xem [AGENTS.md](./AGENTS.md).

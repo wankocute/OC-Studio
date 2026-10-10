@@ -1,18 +1,23 @@
 /**
- * Choosing which facts may be sent to AI (Q6).
+ * Choosing which facts may be sent to AI (Q6, SEN-01, SEN-02).
  *
  * - Default deny: facts of `sensitive` fields are excluded, whatever their state — even
  *   "confirmed none" can be private.
  * - Permission is a per-request argument (`allowSensitive`), never read from or written to the
  *   fact sheet, so one consent is not remembered forever. Having a value is not consent.
- * - Inheritance: a sensitive field covers its whole value (all items, all sub-fields).
- *   A sensitive sub-field is stripped from every item of an otherwise shareable field; an item
- *   left with no content is dropped. Per-item sensitivity is not modelled.
+ * - Three levels, from the outside in:
+ *   1. field (`sensitivity` on the definition) — covers the whole value, every item and sub-field;
+ *   2. item (`sensitiveItemIds` on the fact)   — removes that element of a list;
+ *   3. sub-field (`sensitivity` on a sub-field definition) — stripped from every item.
+ *   A field permission (`"history.events"`) unlocks the field and all its items and sub-fields.
+ *   An item permission (`"history.events[evt_1]"`) unlocks only that item, and only when the
+ *   field itself is not sensitive (the parent's protection always applies first).
+ * - Output never carries privacy metadata (`sensitiveItemIds` is removed).
  * - Facts whose definition cannot be resolved are excluded (cannot know their policy).
  */
 import { createFieldResolver } from "./custom-definitions";
-import { isSensitive } from "./definitions";
-import { itemRef, type FactRef } from "./fingerprint";
+import { isRepeatedKind, isSensitive } from "./definitions";
+import { fieldKeyOfRef, itemRef, type FactRef } from "./fingerprint";
 import type {
   CharacterFacts,
   DefinitionContext,
@@ -23,8 +28,11 @@ import type {
 } from "./types";
 
 export type AiFactPolicy = {
-  /** Sensitive field keys the user allowed for this one request. Empty by default. */
-  readonly allowSensitive?: readonly string[];
+  /**
+   * Sensitive facts the user allowed for this one request: field keys (`psychology.wounds`)
+   * and/or item refs (`history.events[evt_1]`). Empty by default.
+   */
+  readonly allowSensitive?: readonly FactRef[];
 };
 
 export type AiExclusion = {
@@ -35,7 +43,7 @@ export type AiExclusion = {
 };
 
 export type AiFactSelection = {
-  /** A copy of the sheet containing only shareable facts. */
+  /** A copy of the sheet containing only shareable facts, without privacy metadata. */
   facts: CharacterFacts;
   excluded: AiExclusion[];
 };
@@ -53,18 +61,26 @@ function stripSubfields(
   return { value: hasContent ? next : undefined, removed };
 }
 
-function filterSubfields(
+function sensitiveSubfieldKeys(definition: FieldDefinition): string[] {
+  return "fields" in definition
+    ? definition.fields.filter(isSensitive).map((subfield) => subfield.key)
+    : [];
+}
+
+/** Apply item- and sub-field-level policy to a fact of a non-sensitive (or allowed) field. */
+function filterFact(
   definition: FieldDefinition,
   key: string,
   fact: FactValue,
+  allowed: ReadonlySet<string>,
   excluded: AiExclusion[],
 ): FactValue | undefined {
-  if (fact.state !== "specified" || !("fields" in definition)) return fact;
-  const sensitiveKeys = definition.fields.filter(isSensitive).map((subfield) => subfield.key);
-  if (sensitiveKeys.length === 0) return fact;
+  if (fact.state !== "specified") return fact;
+  const fieldAllowed = allowed.has(key);
+  const subfieldKeys = fieldAllowed ? [] : sensitiveSubfieldKeys(definition);
 
   if (definition.kind === "object") {
-    const { value, removed } = stripSubfields(fact.value as ObjectValue, sensitiveKeys);
+    const { value, removed } = stripSubfields(fact.value as ObjectValue, subfieldKeys);
     for (const subfield of removed) excluded.push({ ref: key, subfield, reason: "sensitive" });
     if (value === undefined) {
       excluded.push({ ref: key, reason: "sensitive" });
@@ -73,15 +89,30 @@ function filterSubfields(
     return { state: "specified", value };
   }
 
-  const items: ObjectItem[] = [];
-  for (const item of fact.value as ObjectItem[]) {
+  if (!isRepeatedKind(definition.kind)) return { state: "specified", value: fact.value };
+
+  const sensitiveItems = new Set(fact.sensitiveItemIds ?? []);
+  const items: { id: string }[] = [];
+  for (const item of fact.value as { id: string }[]) {
     const ref = itemRef(key, item.id);
-    const { value, removed } = stripSubfields(item, sensitiveKeys);
+    if (sensitiveItems.has(item.id) && !fieldAllowed && !allowed.has(ref)) {
+      excluded.push({ ref, reason: "sensitive" });
+      continue;
+    }
+    if (definition.kind !== "object_list") {
+      items.push(item);
+      continue;
+    }
+    const { value, removed } = stripSubfields(item as ObjectItem, subfieldKeys);
     for (const subfield of removed) excluded.push({ ref, subfield, reason: "sensitive" });
     if (value === undefined) excluded.push({ ref, reason: "sensitive" });
     else items.push(value as ObjectItem);
   }
-  return items.length > 0 ? { state: "specified", value: items } : undefined;
+  if (items.length === 0) {
+    excluded.push({ ref: key, reason: "sensitive" });
+    return undefined;
+  }
+  return { state: "specified", value: items } as FactValue;
 }
 
 /**
@@ -104,15 +135,11 @@ export function selectFactsForAi(
       excluded.push({ ref: key, reason: "unresolved_definition" });
       continue;
     }
-    if (allowed.has(key)) {
-      values[key] = fact;
-      continue;
-    }
-    if (isSensitive(definition)) {
+    if (isSensitive(definition) && !allowed.has(key)) {
       excluded.push({ ref: key, reason: "sensitive" });
       continue;
     }
-    const filtered = filterSubfields(definition, key, fact, excluded);
+    const filtered = filterFact(definition, key, fact, allowed, excluded);
     if (filtered) values[key] = filtered;
   }
 
@@ -123,4 +150,30 @@ export function selectFactsForAi(
   const selected: CharacterFacts = { ...facts, values };
   if (keptCustom) selected.custom = keptCustom;
   return { facts: selected, excluded };
+}
+
+/**
+ * Which of `refs` (e.g. the facts a generated section used) are sensitive *now*. Privacy
+ * metadata does not change fingerprints, so this is how content that relied on a fact which
+ * was later marked sensitive gets flagged for review. A field ref counts as sensitive when the
+ * field, any of its items or any of its sub-fields is sensitive.
+ */
+export function findSensitiveRefs(
+  refs: readonly FactRef[],
+  facts: CharacterFacts,
+  context: DefinitionContext = {},
+): FactRef[] {
+  const resolve = createFieldResolver(facts.custom, context);
+  return refs.filter((ref) => {
+    const key = fieldKeyOfRef(ref);
+    const definition = resolve(key);
+    if (!definition) return false;
+    if (isSensitive(definition)) return true;
+    const fact = facts.values[key];
+    const sensitiveItems = fact?.state === "specified" ? (fact.sensitiveItemIds ?? []) : [];
+    const hasSensitiveSubfields = sensitiveSubfieldKeys(definition).length > 0;
+    if (ref === key) return sensitiveItems.length > 0 || hasSensitiveSubfields;
+    const itemId = ref.slice(key.length + 1, -1);
+    return sensitiveItems.includes(itemId) || hasSensitiveSubfields;
+  });
 }

@@ -3,8 +3,8 @@
  * Schemas, definitions and tests import from here — no magic numbers elsewhere.
  */
 
-/** Current fact-sheet schema version. v1 → v2 migration: `migration.ts`. */
-export const CHARACTER_FACTS_SCHEMA_VERSION = 2;
+/** Current fact-sheet schema version. Migrations (v1 → v2 → v3): `migration.ts`. */
+export const CHARACTER_FACTS_SCHEMA_VERSION = 3;
 
 /** Validation limits (unchanged from TASK 02 unless noted). Text limits count UTF-16 code units. */
 export const LIMITS = {

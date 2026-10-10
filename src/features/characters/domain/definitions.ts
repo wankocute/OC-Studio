@@ -132,6 +132,7 @@ export const BUILTIN_FIELDS = [
     kind: "single_select",
     options: BIOLOGICAL_SEX_OPTIONS,
     allowOther: true,
+    sensitivity: "sensitive",
   }),
   field("identity.pronouns", "identity", shortText),
   field("identity.nationality", "identity", { ...shortText, allowExplicitNone: true }),
@@ -264,7 +265,9 @@ export const BUILTIN_FIELDS = [
   // Background
   field("background.birthplace", "background", shortText),
   field("background.hometown", "background", shortText),
-  field("background.family", "background", longText),
+  // Free text that typically holds private family circumstances (SEN-01). Other background
+  // fields (birthplace, education, culture…) are not sensitive by default.
+  field("background.family", "background", { ...longText, sensitivity: "sensitive" }),
   field("background.upbringing", "background", longText),
   field("background.education", "background", { ...longText, allowExplicitNone: true }),
   field("background.training", "background", { ...longText, allowExplicitNone: true }),
@@ -344,6 +347,17 @@ export function getBuiltinGroup(id: string): BuiltinGroupDefinition | undefined 
 /** Option codes of a select config, for validation. */
 export function optionCodes(config: { readonly options: readonly SelectOption[] }): string[] {
   return config.options.map((option) => option.code);
+}
+
+const REPEATED_KINDS: ReadonlySet<string> = new Set([
+  "text_list",
+  "character_ref_list",
+  "object_list",
+]);
+
+/** Kinds whose elements have stable ids (and can carry per-item sensitivity). */
+export function isRepeatedKind(kind: string): boolean {
+  return REPEATED_KINDS.has(kind);
 }
 
 /**

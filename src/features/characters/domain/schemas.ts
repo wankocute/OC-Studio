@@ -13,7 +13,7 @@ import { z } from "zod";
 
 import { CHARACTER_FACTS_SCHEMA_VERSION, LIMITS, NAMESPACES } from "./constants";
 import { createFieldResolver, createGroupResolver } from "./custom-definitions";
-import { allowsExplicitNone, optionCodes } from "./definitions";
+import { allowsExplicitNone, isRepeatedKind, optionCodes } from "./definitions";
 import type {
   CharacterFacts,
   CharacterRef,
@@ -62,6 +62,8 @@ const MESSAGES = {
   sensitiveRequired: "Trường con nhạy cảm không thể là bắt buộc (sẽ bị loại khi gửi AI).",
   minAboveMax: "Giá trị nhỏ nhất phải không lớn hơn giá trị lớn nhất.",
   invalidKey: "Khóa không hợp lệ.",
+  sensitiveItemsNotList: "Chỉ trường dạng danh sách mới đánh dấu nhạy cảm theo từng phần tử.",
+  unknownSensitiveItem: "Phần tử được đánh dấu nhạy cảm không tồn tại trong danh sách.",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -380,7 +382,15 @@ export function valueSchemaFor(config: FieldConfig): z.ZodType {
  * never carry a value — "none" is a state, not an empty list or string.
  */
 export const factValueSchema = z.discriminatedUnion("state", [
-  z.strictObject({ state: z.literal("specified"), value: z.unknown() }),
+  z.strictObject({
+    state: z.literal("specified"),
+    value: z.unknown(),
+    sensitiveItemIds: z
+      .array(itemIdSchema)
+      .min(1)
+      .max(LIMITS.historyEvents, MESSAGES.tooManyItems(LIMITS.historyEvents))
+      .optional(),
+  }),
   z.strictObject({ state: z.literal("explicit_none") }),
   z.strictObject({ state: z.literal("not_applicable") }),
 ]);
@@ -667,6 +677,34 @@ export const libraryDefinitionsSchema = z
 // Character facts
 // ---------------------------------------------------------------------------
 
+/** Per-item sensitivity must point at existing items of a list field, without duplicates. */
+function checkSensitiveItemIds(
+  kind: string,
+  value: unknown,
+  ids: readonly string[],
+  ctx: z.RefinementCtx,
+  path: PropertyKey[],
+) {
+  if (!isRepeatedKind(kind)) {
+    ctx.addIssue({ code: "custom", message: MESSAGES.sensitiveItemsNotList, path });
+    return;
+  }
+  const existing = new Set((value as { id: string }[]).map((item) => item.id));
+  const duplicate = findDuplicateIndex(ids, (id) => id);
+  if (duplicate >= 0) {
+    ctx.addIssue({ code: "custom", message: MESSAGES.duplicateId, path: [...path, duplicate] });
+  }
+  ids.forEach((id, index) => {
+    if (!existing.has(id)) {
+      ctx.addIssue({
+        code: "custom",
+        message: MESSAGES.unknownSensitiveItem,
+        path: [...path, index],
+      });
+    }
+  });
+}
+
 const characterFactsShape = z.strictObject({
   schemaVersion: z.literal(CHARACTER_FACTS_SCHEMA_VERSION),
   displayName: textSchema(LIMITS.displayName),
@@ -714,6 +752,12 @@ export function createCharacterFactsSchema(context: DefinitionContext = {}) {
             path: ["values", key, "value", ...issue.path],
           });
         }
+      } else if (fact.sensitiveItemIds) {
+        checkSensitiveItemIds(definition.kind, fact.value, fact.sensitiveItemIds, ctx, [
+          "values",
+          key,
+          "sensitiveItemIds",
+        ]);
       }
     }
   });
@@ -723,8 +767,8 @@ export function createCharacterFactsSchema(context: DefinitionContext = {}) {
 export const characterFactsSchema = createCharacterFactsSchema();
 
 /**
- * Validate a v2 fact sheet. Returns the same data (never transformed) or the validation issues.
- * Pass the library definitions the sheet uses; v1 sheets must go through `migrateCharacterFacts`.
+ * Validate a fact sheet of the current schema version. Returns the same data (never transformed) or the validation issues.
+ * Pass the library definitions the sheet uses; older sheets must go through `migrateCharacterFacts`.
  */
 export function parseCharacterFacts(input: unknown, context: DefinitionContext = {}) {
   const schema = context.library ? createCharacterFactsSchema(context) : characterFactsSchema;
@@ -748,4 +792,5 @@ export type SchemaTypeChecks = [
   Assert<Extends<z.output<typeof libraryDefinitionsSchema>, LibraryDefinitions>>,
   Assert<Extends<z.output<typeof characterRefItemSchema>, { id: string; ref: CharacterRef }>>,
   Assert<Extends<Exclude<z.output<typeof factValueSchema>, { value: unknown }>, FactValue>>,
+  Assert<Extends<FactValue & { state: "specified" }, { sensitiveItemIds?: string[] }>>,
 ];

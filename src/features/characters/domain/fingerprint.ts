@@ -16,6 +16,7 @@
  * different algorithm are never compared as if equal or different: they are "incomparable".
  */
 import { createFieldResolver, fieldScopeOf } from "./custom-definitions";
+import { isRepeatedKind } from "./definitions";
 import type { CharacterFacts, DefinitionContext, FactValue, FieldDefinition } from "./types";
 
 export type FactRef = string;
@@ -94,7 +95,14 @@ function definitionSemantics(definition: FieldDefinition): unknown {
   return semantic;
 }
 
-const REPEATED_KINDS = new Set(["text_list", "character_ref_list", "object_list"]);
+/**
+ * The content part of a fact: privacy metadata (`sensitiveItemIds`) is not part of what the fact
+ * says, so marking an item sensitive does not make content outdated. Use `findSensitiveRefs`
+ * to detect content that relied on facts which have since become sensitive.
+ */
+function factContent(fact: FactValue): unknown {
+  return fact.state === "specified" ? { state: fact.state, value: fact.value } : fact;
+}
 
 function itemsOf(fact: FactValue): readonly { id: string }[] {
   return fact.state === "specified" && Array.isArray(fact.value)
@@ -121,9 +129,9 @@ export function computeFactFingerprints(
     const withDefinition = (content: unknown) =>
       semantic === undefined ? content : { content, definition: semantic };
 
-    result[fieldRef(key)] = fingerprint(withDefinition(fact));
+    result[fieldRef(key)] = fingerprint(withDefinition(factContent(fact)));
 
-    if (!definition || !REPEATED_KINDS.has(definition.kind)) continue;
+    if (!definition || !isRepeatedKind(definition.kind)) continue;
     for (const item of itemsOf(fact)) {
       result[itemRef(key, item.id)] = fingerprint(withDefinition(item));
     }

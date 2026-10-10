@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CHARACTER_FACTS_SCHEMA_VERSION,
   type CharacterFacts,
   type CustomFieldDefinition,
   type FactValue,
@@ -17,7 +18,12 @@ import {
 } from "./fixtures/sample-characters";
 
 function sheet(values: Record<string, unknown>, extra: Partial<CharacterFacts> = {}): unknown {
-  return { schemaVersion: 2, displayName: "Thử nghiệm", values, ...extra };
+  return {
+    schemaVersion: CHARACTER_FACTS_SCHEMA_VERSION,
+    displayName: "Thử nghiệm",
+    values,
+    ...extra,
+  };
 }
 
 function specified(value: unknown) {
@@ -70,14 +76,15 @@ describe("sample characters", () => {
 
 describe("display name", () => {
   it("is required and cannot be blank", () => {
-    expectInvalidAt({ schemaVersion: 2, values: {} }, "displayName");
+    expectInvalidAt({ schemaVersion: CHARACTER_FACTS_SCHEMA_VERSION, values: {} }, "displayName");
     expectInvalidAt(sheet({}, { displayName: "   " }), "displayName");
   });
 
   it("rejects an unknown schema version", () => {
-    expectInvalidAt({ schemaVersion: 3, displayName: "A", values: {} }, "schemaVersion");
+    expectInvalidAt({ schemaVersion: 99, displayName: "A", values: {} }, "schemaVersion");
     // v1 sheets are not silently accepted: they must go through migrateCharacterFacts.
     expectInvalidAt({ schemaVersion: 1, displayName: "A", values: {} }, "schemaVersion");
+    expectInvalidAt({ schemaVersion: 2, displayName: "A", values: {} }, "schemaVersion");
   });
 });
 

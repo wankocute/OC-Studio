@@ -8,6 +8,9 @@ import { getServerEnv } from "@/lib/env";
 import * as schema from "./schema";
 
 export type Database = NodePgDatabase<typeof schema>;
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+/** Anything that can run queries: the database or an open transaction. */
+export type DbExecutor = Database | Transaction;
 
 export class DatabaseNotConfiguredError extends Error {
   constructor() {
@@ -16,7 +19,18 @@ export class DatabaseNotConfiguredError extends Error {
   }
 }
 
-type DatabaseClient = { pool: Pool; db: Database };
+export type DatabaseClient = { pool: Pool; db: Database };
+
+/** Create a pool + Drizzle instance for an explicit URL (scripts, integration tests). */
+export function createDatabase(connectionString: string): DatabaseClient {
+  const pool = new Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+  });
+  return { pool, db: drizzle({ client: pool, schema }) };
+}
 
 // Reuse a single pool across hot reloads in development.
 const globalForDb = globalThis as typeof globalThis & { __ocStudioDb?: DatabaseClient };
@@ -27,13 +41,7 @@ function getClient(): DatabaseClient {
   const { DATABASE_URL } = getServerEnv();
   if (!DATABASE_URL) throw new DatabaseNotConfiguredError();
 
-  const pool = new Pool({
-    connectionString: DATABASE_URL,
-    max: 10,
-    connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 30_000,
-  });
-  const client = { pool, db: drizzle({ client: pool, schema }) };
+  const client = createDatabase(DATABASE_URL);
   globalForDb.__ocStudioDb = client;
   return client;
 }

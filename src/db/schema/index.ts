@@ -1,4 +1,5 @@
-// Drizzle schema entry point.
-// Domain tables (characters, profiles, collections, templates…) will be defined here
-// once the domain model is confirmed. Do not add placeholder business tables.
-export {};
+// Drizzle schema entry point. Tables follow docs/database-design.md.
+// Profiles, AI generations and templates are intentionally absent until they are specified.
+export * from "./characters";
+export * from "./library";
+export * from "./library-definitions";

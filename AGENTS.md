@@ -31,13 +31,14 @@ pnpm dev | build | start
 pnpm typecheck      # next typegen && tsc --noEmit
 pnpm lint           # ESLint (flat config)
 pnpm format         # Prettier
-pnpm test           # Vitest unit tests (src/**/*.test.ts[x])
+pnpm test           # Vitest unit tests (src/**/*.test.ts[x], no database)
+pnpm test:integration  # Vitest + real PostgreSQL on a *_test database (src/**/*.int.test.ts)
 pnpm test:e2e       # Playwright (e2e/)
 pnpm db:check       # read-only connectivity check
 pnpm db:generate | db:migrate | db:studio
 ```
 
-Before declaring work done: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` must pass. Report real results; never claim a check passed without running it.
+Before declaring work done: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` must pass (plus `pnpm test:integration` when persistence changes). Report real results; never claim a check passed without running it.
 
 ## Stack & versions
 
@@ -58,7 +59,7 @@ Next.js 16 (App Router, `cacheComponents`, `partialPrefetching`, `typedRoutes`, 
 
 ## Character Fact domain
 
-Spec: `docs/character-fact-schema.md`; decisions Q1–Q12 and open questions: `docs/character-domain-decisions.md`. Code: `src/features/characters/domain/` (imports only `zod` — enforced by a test). Current `schemaVersion`: **2**.
+Spec: `docs/character-fact-schema.md`; decisions Q1–Q12 and open questions: `docs/character-domain-decisions.md`. Code: `src/features/characters/domain/` (imports only `zod` — enforced by a test). Current `schemaVersion`: **3**.
 
 - `CharacterFacts` is the single source of truth. AI-edited content must never write back to it.
 - `values` is a flat map `fieldKey → { state: "specified", value } | { state: "explicit_none" } | { state: "not_applicable" }`; **unspecified = key absent** (never stored). "None" is a state, never an empty list/string.
@@ -66,12 +67,26 @@ Spec: `docs/character-fact-schema.md`; decisions Q1–Q12 and open questions: `d
 - Key prefixes encode scope: built-in `group.name`, character-scoped `custom.<id>` / `cg_<id>`, library-scoped `lib.<id>` / `lg_<id>`. Library definitions are passed in via `DefinitionContext` — never a global registry. Edits to a definition in use must pass `findBreakingChanges`.
 - Every repeated element (list item, event, relationship…) has a stable `id`.
 - Convert form input with `normalizeFactInput`, then validate with `parseCharacterFacts(input, context)`. Schemas never transform data. Stored v1 data goes through `migrateCharacterFacts` (never guess meaning).
-- Anything sent to AI must go through `selectFactsForAi` (sensitive facts excluded unless allowed for that request).
+- Anything sent to AI must go through `selectFactsForAi` (sensitive fields, items (`sensitiveItemIds`) and sub-fields excluded unless allowed for that request). Envelope metadata such as `sensitiveItemIds` must be preserved by every transformation.
 - Presentation (basic/advanced, templates) never changes facts — see `presentation.ts`.
 - Limits live in `constants.ts` (`LIMITS`); no magic numbers.
 - Nesting limit: group → sub-group → field → leaf sub-field.
 - Adding a built-in field: add it to `definitions.ts`, `labels.vi.ts` and the table in `docs/character-fact-schema.md` (tests check all three).
 - Sample characters in `__tests__/fixtures/` are illustrative only — never seed them as real data.
+
+## Persistence
+
+Design: `docs/database-design.md`; migration workflow and backups: `docs/database-migrations.md`.
+
+- All DB access goes through repositories (`src/features/*/server/*-repository.ts`, `import "server-only"`), created with `create…Repository(db)`. They throw only `RepositoryError` (`src/db/repository-errors.ts`) — never raw driver errors.
+- `characters.display_name` and `characters.schema_version` are the only copies of `displayName` / `schemaVersion`; `characters.facts` (JSONB) holds the rest and a CHECK forbids duplicates.
+- Every write validates facts with `parseCharacterFacts(facts, { library })` using all library definitions (including deprecated). Never strip or coerce stored JSON.
+- `character_references` is a derived index rebuilt in the same transaction as the facts. Never write it directly.
+- Updates and soft deletes require the expected `revision`; never overwrite on conflict. Keep the lock order documented in `docs/database-design.md` §9.
+- Library field definitions: only compatible edits (`findBreakingChanges`); deprecate instead of delete; keys are never reused.
+- DDL: `pnpm db:generate --name=…`, review the SQL, then `pnpm db:migrate`. Never `drizzle-kit push`, never destructive SQL on databases with data, back up first. Old JSON is migrated on read (in memory) and saved at the current version on the next update.
+- Integration tests only touch databases whose name ends in `_test` (`src/test/test-database.ts` enforces it). Never run them against `DATABASE_URL`.
+- No tables for profiles, AI generations or templates until those are specified.
 
 ## Next.js 16 conventions
 

@@ -1,6 +1,6 @@
 /**
  * ⚠️ DỮ LIỆU MINH HỌA — ILLUSTRATIVE SAMPLE DATA ONLY.
- * Fictional characters written to exercise the Character Fact schema (v2) in tests and docs.
+ * Fictional characters written to exercise the Character Fact schema (v3) in tests and docs.
  * Not user data; must never be seeded into the database or shown as real content.
  */
 import type { CharacterFacts, DefinitionContext, LibraryDefinitions } from "../../domain";
@@ -49,7 +49,7 @@ export const sampleContext: DefinitionContext = { library: sampleLibrary };
  * a sensitive built-in fact; library fields; source language set.
  */
 export const sampleContemporary: CharacterFacts = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   displayName: "Ngọc",
   sourceLanguage: "vi",
   values: {
@@ -156,7 +156,14 @@ export const sampleContemporary: CharacterFacts = {
             },
           ],
         },
+        {
+          id: "evt_bo_roi_di",
+          title: "Bố rời khỏi gia đình",
+          time: { type: "text", text: "Năm Ngọc lên mười" },
+        },
       ],
+      // Per-item sensitivity (SEN-02): only this event is private; the others stay shareable.
+      sensitiveItemIds: ["evt_bo_roi_di"],
     },
 
     "relationships.entries": {
@@ -192,6 +199,7 @@ export const sampleContemporary: CharacterFacts = {
           description: "Thầy dạy vẽ đầu tiên.",
         },
       ],
+      sensitiveItemIds: ["rel_me"],
     },
 
     // Library-scoped fields (Q1), resolved through `sampleContext`.
@@ -206,7 +214,7 @@ export const sampleContemporary: CharacterFacts = {
  * custom facts (one sensitive), gender identity outside the option list.
  */
 export const sampleFantasy: CharacterFacts = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   displayName: "Dạ Vân",
   sourceLanguage: "vi",
   values: {
@@ -354,7 +362,7 @@ export const sampleFantasy: CharacterFacts = {
 
 /** Character C — minimal: a name and a couple of traits. Language unknown, nothing else set. */
 export const sampleMinimal: CharacterFacts = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   displayName: "Khải",
   values: {
     "personality.core_traits": {
