@@ -828,6 +828,46 @@ export const vi = {
     migration_review_required:
       "Hồ sơ còn dữ liệu cũ cần xem lại. Hãy mở trình biên tập dữ kiện và xác nhận phần xem lại trước.",
   },
+  profileAi: {
+    title: "AI hỗ trợ mục này",
+    open: "Viết với AI",
+    preview: "Dữ kiện sẽ gửi",
+    sensitive: "Cho phép dữ kiện nhạy cảm cho lần tạo này",
+    instruction: "Yêu cầu viết (tùy chọn)",
+    generate: "Tạo nội dung",
+    generating: "Đang tạo…",
+    regenerate: "Tạo lại với quyền mới",
+    apply: "Dùng làm bản nháp",
+    discard: "Bỏ qua",
+    candidate: "Nội dung đề xuất",
+    stale: "Dữ kiện đã đổi. Đề xuất này có thể lỗi thời; hãy xem lại trước khi áp dụng.",
+    confirmStale: "Tôi đã xem lại và chấp nhận đề xuất có thể lỗi thời",
+    draftChanged: "Bản nháp đã đổi. Đề xuất được giữ để xem, hãy tạo lại từ bản nháp hiện tại.",
+    savedFirst: "Chờ bản nháp lưu xong trước khi mở AI hoặc áp dụng.",
+    missing:
+      "Chưa cấu hình hợp lệ provider đã chọn. Gemini cần GEMINI_API_KEY và GEMINI_MODEL=gemini-3.8-flash; OpenAI cần OPENAI_API_KEY và OPENAI_MODEL. Bạn vẫn có thể soạn thủ công.",
+    geminiNotice:
+      "Google có thể dùng nội dung gửi qua Free Tier để cải thiện sản phẩm. Hãy dùng key của project Free Tier không bật billing; app không xác minh được trạng thái billing chỉ từ API key.",
+    empty:
+      "Không còn dữ kiện dùng được trong nhóm nguồn của mục. Hãy bổ sung dữ kiện hoặc chọn lại nhóm nguồn.",
+    notice:
+      "AI chỉ nhận dữ kiện bên dưới và yêu cầu viết của bạn. Bản nháp, bản duyệt và ảnh không được gửi. Quyền nhạy cảm không được nhớ cho lần sau. Đề xuất hết hạn sau 15 phút hoặc khi server khởi động lại.",
+    errors: {
+      configuration:
+        "Cấu hình AI thiếu hoặc không hợp lệ. Kiểm tra provider, API key và model trên server; Gemini chỉ hỗ trợ gemini-3.8-flash đã chọn cho Free Tier.",
+      network:
+        "Không kết nối được AI hoặc đã quá thời gian chờ. Bạn có thể tạo lại; bản nháp vẫn được giữ.",
+      rateLimit:
+        "Provider đã hết quota hoặc đang giới hạn lượt gọi (429). Hãy chờ rồi bấm tạo lại thủ công; app không tự retry hay đổi provider.",
+      output: "AI trả nội dung trống, sai định dạng hoặc vượt giới hạn. Hãy tạo lại.",
+      expired: "Đề xuất hoặc bản xem trước đã hết hạn. Hãy mở lại AI.",
+      changed: "Dữ kiện hoặc mục đã đổi sau khi xem trước. Hãy xem trước lại trước khi tạo.",
+      empty: "Không có dữ kiện để viết mục này. Hãy bổ sung dữ kiện trước.",
+      limit: "Dữ kiện hoặc yêu cầu vượt giới hạn cho một lần tạo.",
+      busy: "Một lần tạo đang chạy hoặc bộ nhớ đề xuất đã đầy. Hãy chờ rồi thử lại.",
+      stale: "Dữ kiện đã đổi trước khi áp dụng. Hãy xác nhận đã xem lại đề xuất có thể lỗi thời.",
+    },
+  },
   notFound: {
     title: "Không tìm thấy trang",
     body: "Trang bạn tìm không tồn tại hoặc đã được di chuyển.",

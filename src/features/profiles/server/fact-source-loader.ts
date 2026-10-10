@@ -16,5 +16,5 @@ export async function loadFactSources(db: Database, characterId: string) {
   const deprecated = new Set(
     fields.filter((field) => field.status === "deprecated").map((field) => field.definition.key),
   );
-  return { character, sources: factSourcesOf(character.facts, library, deprecated) };
+  return { character, library, sources: factSourcesOf(character.facts, library, deprecated) };
 }

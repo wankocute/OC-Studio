@@ -3,6 +3,11 @@ import "server-only";
 import { z } from "zod";
 
 const serverEnvSchema = z.object({
+  AI_PROVIDER: z.enum(["gemini", "openai"]).default("gemini"),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().optional(),
   DATABASE_URL: z
     .url({
       protocol: /^postgres(ql)?$/,

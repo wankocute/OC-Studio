@@ -80,6 +80,17 @@ Lưu file dump ngoài thư mục dự án (không commit). Kiểm tra bản sao 
 
 ## 6. Database `oc_studio` hiện tại
 
+Kiểm tra trực tiếp ngày 2026-10-10 trong TASK 07: database có 10 bảng và journal
+chỉ có `0000`. Đã sao lưu bằng `D:/PostgreSQL17/bin/pg_dump.exe` với cấu hình
+`DATABASE_URL` hiện có vào
+`C:/Users/DELL/AppData/Local/Temp/oc-studio-1791636446967.dump`, rồi áp `0001_profiles.sql`
+(đã review: chỉ thêm bảng, constraint và index). Kiểm tra lại journal có hai dòng
+và đủ 13 bảng. Đây là trạng thái của máy đã kiểm tra, không phải giả định cho
+các môi trường khác. TASK 07 không thay schema hay thêm migration.
+
+`pnpm exec tsx scripts/db-status.ts` kiểm tra danh sách bảng và journal chỉ đọc;
+không in URL/credentials. Bản ghi TASK 03 dưới đây là thông tin lịch sử.
+
 Ở thời điểm TASK 03, database `oc_studio` **chưa có bảng nào** và chưa được migrate (chỉ database test được migrate tự động). Để áp schema:
 
 ```bash

@@ -10,6 +10,7 @@ import { guard, RepositoryError } from "@/db/repository-errors";
 import { characters, contentRevisions, profiles, profileSections } from "@/db/schema";
 import type { FactSnapshot } from "@/features/characters/domain";
 import { issuesOf } from "@/features/characters/server/validation";
+import { isAiSnapshot } from "../ai/facts";
 import {
   CHECKPOINT_INTERVAL_MS,
   contentHash,
@@ -296,7 +297,13 @@ async function recordDraft(
   if (isDocumentEmpty(draft)) return;
   const latest = await latestRevision(tx, section.id);
   if (latest?.contentHash === contentHash(draft)) return;
-  await insertRevision(tx, { sectionId: section.id, kind, content: draft, createdAt: at });
+  await insertRevision(tx, {
+    sectionId: section.id,
+    kind,
+    content: draft,
+    createdAt: at,
+    factSnapshot: latest?.factSnapshot ? (latest.factSnapshot as FactSnapshot) : undefined,
+  });
 }
 
 async function writeDraft(
@@ -598,18 +605,44 @@ export function createProfileRepository(db: Database) {
             if (current?.hash === contentHash(draft)) return { changed: false as const };
           }
           const now = options.now ?? new Date();
+          const latest = await latestRevision(tx, sectionId);
+          const provenance = latest?.factSnapshot as FactSnapshot | null;
           const revision = await insertRevision(tx, {
             sectionId,
             kind: "approval",
             content: draft,
             createdAt: now,
-            factSnapshot,
+            factSnapshot: provenance && isAiSnapshot(provenance) ? provenance : factSnapshot,
           });
           await tx
             .update(profileSections)
             .set({ approvedRevisionId: revision.id, updatedAt: now })
             .where(eq(profileSections.id, sectionId));
           return { changed: true as const, approved: toApproved(revision)! };
+        }),
+      ),
+
+    applyAiDraft: (
+      sectionId: string,
+      expectedDraftRevision: number,
+      input: unknown,
+      snapshot: FactSnapshot,
+    ) =>
+      guard(() =>
+        db.transaction(async (tx) => {
+          const content = parseContent(input);
+          const section = await lockSection(tx, sectionId);
+          assertDraftRevision(section, expectedDraftRevision);
+          const now = new Date();
+          await recordDraft(tx, section, "before_restore", now);
+          await insertRevision(tx, {
+            sectionId,
+            kind: "restore",
+            content,
+            factSnapshot: snapshot,
+            createdAt: new Date(now.getTime() + 1),
+          });
+          return writeDraft(tx, section, content, new Date(now.getTime() + 1));
         }),
       ),
 
@@ -677,6 +710,7 @@ export function createProfileRepository(db: Database) {
             // Strictly after the snapshot of the replaced draft, so the history order is stable.
             createdAt: new Date(now.getTime() + 1),
             restoredFromId: source.id,
+            factSnapshot: source.factSnapshot ? (source.factSnapshot as FactSnapshot) : undefined,
           });
           const saved = await writeDraft(tx, section, content, new Date(now.getTime() + 1));
           return { changed: true as const, content, ...saved };

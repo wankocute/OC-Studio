@@ -2,9 +2,57 @@
 
 Ứng dụng web cá nhân để tạo, quản lý và biên tập hồ sơ nhân vật hư cấu (Original Characters) phục vụ viết truyện và roleplay.
 
-> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02–03), lưu trữ PostgreSQL (TASK 03) , giao diện thư viện nhân vật (TASK 04): tạo / xem / sửa thông tin cơ bản / xóa OC, tìm kiếm, sắp xếp, yêu thích, thẻ, bộ sưu tập, ảnh đại diện và ảnh tham khảo; và trình biên tập dữ kiện (TASK 05): mọi nhóm dữ kiện, chế độ Cơ bản / Nâng cao, bốn trạng thái dữ kiện, tự động lưu có xử lý xung đột, trường tùy chỉnh riêng và dùng chung, quan hệ nhân vật, đánh dấu nhạy cảm theo phần tử, xem lại dữ liệu cũ và ngôn ngữ nguồn; và hồ sơ chi tiết (TASK 06, `/characters/[id]/profile`): các mục văn bản soạn bằng Tiptap, tự động lưu, bản nháp tách khỏi bản đã duyệt, lịch sử phiên bản có khôi phục, thêm / đổi tên / sắp xếp / ẩn mục và xem trước. Chưa có AI hay xuất PDF.
+> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02–03), lưu trữ PostgreSQL (TASK 03) , giao diện thư viện nhân vật (TASK 04): tạo / xem / sửa thông tin cơ bản / xóa OC, tìm kiếm, sắp xếp, yêu thích, thẻ, bộ sưu tập, ảnh đại diện và ảnh tham khảo; và trình biên tập dữ kiện (TASK 05): mọi nhóm dữ kiện, chế độ Cơ bản / Nâng cao, bốn trạng thái dữ kiện, tự động lưu có xử lý xung đột, trường tùy chỉnh riêng và dùng chung, quan hệ nhân vật, đánh dấu nhạy cảm theo phần tử, xem lại dữ liệu cũ và ngôn ngữ nguồn; và hồ sơ chi tiết (TASK 06, `/characters/[id]/profile`): các mục văn bản soạn bằng Tiptap, tự động lưu, bản nháp tách khỏi bản đã duyệt, lịch sử phiên bản có khôi phục, thêm / đổi tên / sắp xếp / ẩn mục và xem trước. Đã có AI hỗ trợ viết từng mục (TASK 07); chưa có xuất PDF.
 
 > Sau khi cập nhật lên TASK 06 cần áp migration mới (sao lưu trước, xem `docs/database-migrations.md`): `pnpm db:migrate`.
+
+## AI viết từng mục (TASK 07)
+
+TASK 07.1 dùng Gemini mặc định, chọn `gemini-3.8-flash`: đầu vào/đầu ra văn bản
+có [Free Tier trong bảng giá Google](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash)
+và hỗ trợ [JSON có cấu trúc](https://ai.google.dev/gemini-api/docs/generate-content/structured-output),
+đã kiểm tra ngày 2026-10-10. App chỉ chấp nhận model Gemini này; không tự đổi model/provider.
+
+1. Đăng nhập [Google AI Studio → API keys](https://aistudio.google.com/api-keys),
+   tạo key trong một project mới hoặc chọn project **Free Tier** chưa bật billing.
+   Xem [hướng dẫn key](https://ai.google.dev/gemini-api/docs/api-key).
+2. Không chọn **Set up billing**, không liên kết tài khoản billing hay nâng cấp tier.
+   Kiểm tra project tương ứng vẫn ở Free Tier trong AI Studio trước khi dùng.
+   [Billing của Google](https://ai.google.dev/gemini-api/docs/billing) gắn với project;
+   app **không tự xác minh được trạng thái billing chỉ từ API key**. Một model có
+   Free Tier vẫn có thể tính phí nếu key thuộc project đã bật billing.
+3. Điền cấu hình server trong `.env.local`, rồi khởi động lại server:
+
+   ```dotenv
+   AI_PROVIDER=gemini
+   GEMINI_API_KEY=<key của project Free Tier>
+   GEMINI_MODEL=gemini-3.8-flash
+   ```
+
+Google có thể dùng nội dung Free Tier để cải thiện sản phẩm; thông tin này cũng
+hiện ở bước preview. Quota thực tế phụ thuộc project và có thể thay đổi: xem
+[rate limits trong AI Studio](https://aistudio.google.com/usage?tab=rate-limit),
+app không hardcode quota. Khi hết quota/429, app báo tiếng Việt và chỉ thử lại khi
+bạn bấm tạo lại. Thiếu key/model hợp lệ thì nút tạo bị vô hiệu hóa, soạn thủ công vẫn hoạt động.
+
+Adapter OpenAI vẫn được giữ, **chỉ** gọi khi bạn đặt rõ `AI_PROVIDER=openai`,
+`OPENAI_API_KEY` và `OPENAI_MODEL`; đây là lựa chọn API có tính phí. ChatGPT Plus
+và Claude Pro không được dùng để cấp quyền API. Gemini lỗi không bao giờ fallback
+sang OpenAI, Claude hoặc model khác. Key/payload không được ghi vào log.
+
+Mở hồ sơ → chọn một mục → **Viết với AI** → xem đúng payload dữ kiện đã lọc,
+chọn rõ dữ kiện nhạy cảm nếu cần → nhập yêu cầu → **Tạo nội dung**.
+AI không nhận bản nháp, bản duyệt, ảnh hoặc hồ sơ OC liên kết. Nội dung chỉ xuất hiện
+ở vùng đề xuất. Chọn **Dùng làm bản nháp** để giữ bản cũ trong lịch sử, rồi duyệt
+bằng luồng hiện có. Nếu bản nháp đổi, phải tạo lại; nếu dữ kiện đổi, cần xem lại và
+xác nhận đề xuất có thể lỗi thời. Quyền nhạy cảm không được nhớ cho lần tạo sau.
+
+Đề xuất chưa áp dụng hết hạn sau 15 phút hoặc khi server khởi động lại; tối đa
+100 bản trong bộ nhớ. Một lần gọi chờ tối đa 60 giây, dữ kiện ≤ 60 000 ký tự,
+yêu cầu ≤ 2 000 ký tự, output ≤ 12 000 ký tự và 6 000 token. Không tự retry.
+TASK 07 không thêm migration; vẫn cần migration `0001_profiles.sql` của TASK 06.
+API thật chỉ chạy khi bạn bấm tạo với key thật; các test tự động dùng adapter/fetch
+giả và server E2E ghi đè key/model, không phát sinh phí.
 
 ## Yêu cầu môi trường
 

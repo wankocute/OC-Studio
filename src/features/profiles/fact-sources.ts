@@ -16,10 +16,13 @@ import { buildEditorGroups, fieldsOfGroup } from "@/features/characters/editor/l
 import { messages } from "@/i18n";
 
 import { sectionFactSnapshot } from "./domain";
+import { aiSnapshotStale, isAiSnapshot } from "./ai/facts";
 
 export type SourceGroupOption = { id: string; label: string };
 
 export type FactSources = {
+  facts: CharacterFacts;
+  library: LibraryDefinitions;
   /** Top-level fact groups a section can be written from, in fact-editor order. */
   groups: SourceGroupOption[];
   fieldsByGroup: ReadonlyMap<string, readonly string[]>;
@@ -45,6 +48,8 @@ export function factSourcesOf(
     for (const field of fields) fieldLabels.set(field.key, field.label);
   }
   return {
+    facts,
+    library,
     groups: groups.map((group) => ({ id: group.id, label: group.label })),
     fieldsByGroup,
     fieldLabels,
@@ -61,6 +66,14 @@ export type FactFreshness =
 
 /** Whether the facts approved content was written from changed since it was approved. */
 export function freshnessOf(snapshot: FactSnapshot, sources: FactSources): FactFreshness {
+  if (isAiSnapshot(snapshot)) {
+    return aiSnapshotStale(snapshot, sources.facts, { library: sources.library })
+      ? {
+          status: "outdated",
+          labels: snapshot.scope.map((key) => sources.fieldLabels.get(key) ?? key),
+        }
+      : { status: "fresh" };
+  }
   const assessment = assessFactSnapshot(snapshot, sources.fingerprints);
   if (assessment.status === "fresh") return { status: "fresh" };
   if (assessment.status === "incomparable") return { status: "incomparable" };

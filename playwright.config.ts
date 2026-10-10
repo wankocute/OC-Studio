@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { resolve } from "node:path";
 
 import { E2E_DATABASE_URL, E2E_MEDIA_DIR, E2E_PORT } from "./e2e/environment";
 
@@ -35,6 +36,13 @@ export default defineConfig({
       DATABASE_URL: E2E_DATABASE_URL,
       MEDIA_STORAGE_DIR: E2E_MEDIA_DIR,
       NEXT_DIST_DIR: ".next-e2e",
+      // No test can incur provider charges, even if .env.local has a real key.
+      AI_PROVIDER: "gemini",
+      GEMINI_API_KEY: "e2e-not-a-real-key",
+      GEMINI_MODEL: "gemini-3.8-flash",
+      OPENAI_API_KEY: "e2e-not-a-real-key",
+      OPENAI_MODEL: "e2e-fake-model",
+      NODE_OPTIONS: `--require "${resolve("e2e/ai-fetch-stub.cjs").replaceAll("\\", "/")}"`,
     },
   },
 });

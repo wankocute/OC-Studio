@@ -41,6 +41,31 @@ async function revisionCount(sectionId: string) {
 }
 
 describe("profile repository", () => {
+  it("AI apply preserves history/approval/facts, locks the original draft, and carries provenance to approval", async () => {
+    const { character, section } = await setup();
+    const saved = await profiles.saveDraft(section.id, doc("Manual"), 1);
+    await profiles.approve(section.id, saved.draftRevision, snapshot);
+    const before = await characters.getById(character.id);
+    const aiSource = { ...snapshot, aiProjection: { displayName: true as const } };
+    await expect(profiles.applyAiDraft(section.id, 1, doc("AI"), aiSource)).rejects.toMatchObject({
+      code: "revision_conflict",
+    });
+    const applied = await profiles.applyAiDraft(
+      section.id,
+      saved.draftRevision,
+      doc("AI"),
+      aiSource,
+    );
+    const current = await profiles.getSection(section.id);
+    expect(current.draft).toEqual(doc("AI"));
+    expect(current.approved?.content).toEqual(doc("Manual"));
+    expect((await profiles.listHistory(section.id)).some((item) => item.excerpt === "Manual")).toBe(
+      true,
+    );
+    expect((await characters.getById(character.id)).facts).toEqual(before.facts);
+    const approved = await profiles.approve(section.id, applied.draftRevision, snapshot);
+    expect(approved.changed && approved.approved.factSnapshot).toEqual(aiSource);
+  });
   it("has no profile until one is started, then the template's sections", async () => {
     const character = await characters.create({ ...sampleMinimal, displayName: "An" });
     expect(await profiles.getPrimary(character.id)).toBeNull();

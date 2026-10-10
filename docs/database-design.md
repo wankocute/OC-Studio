@@ -301,9 +301,43 @@ Hồ sơ là **văn bản** viết từ dữ kiện; dữ kiện vẫn chỉ n�
 - **Tạo hồ sơ** là thao tác rõ ràng (nút "Tạo hồ sơ"); mở trang không ghi gì. `createPrimary` an toàn khi bấm đồng thời (ON CONFLICT trên index hồ sơ chính).
 - **Khóa:** cấu trúc — dòng `profiles` (UPDATE); nội dung — dòng `profile_sections` (UPDATE); cả hai đều chỉ trên OC chưa bị xóa.
 
-### Điểm mở rộng cho TASK 07 (chưa triển khai)
+### AI từng mục (TASK 07)
 
-Ứng viên AI dự kiến là một `kind` mới của `content_revisions` (hoặc bảng `ai_generations` riêng) mang `fact_snapshot` + phạm vi dữ kiện đã gửi (`selectFactsForAi`); duyệt ứng viên = ghi nó thành bản nháp/bản duyệt qua cùng các đường `saveDraft`/`approve`, nên nội dung sửa tay vẫn nằm trong lịch sử. TASK 06 không gọi AI và không tạo bảng/cột giữ chỗ cho AI.
+Ứng viên và bản xem trước nằm trong bộ nhớ server, tối đa 100 bản và hết hạn sau
+15 phút; khởi động lại server sẽ mất đề xuất chưa áp dụng. Không thêm bảng hoặc
+migration. Token ngẫu nhiên chỉ tham chiếu dữ liệu server, không nhận nội dung hay
+snapshot từ client. Bản xem trước bị tiêu thụ khi tạo (quyền nhạy cảm chỉ một lần),
+server đọc lại và từ chối nếu payload đã đổi. Không giữ transaction khi gọi provider.
+
+Áp dụng khóa mục bằng `draft_revision` ban đầu, giữ bản cũ bằng `before_restore`,
+ghi đề xuất thành `restore` với `fact_snapshot`, rồi thay bản nháp. Không đổi bản
+đã duyệt. Snapshot AI bổ sung `aiProjection`: chỉ danh sách khóa, id phần tử và
+tên trường con thực sự được gửi, không chứa giá trị hoặc quyền cho lần tạo sau.
+Fingerprint được tính trên phần đã lọc; so lỗi thời dùng cùng projection để
+không gán nguồn cho phần nhạy cảm chưa gửi. Khi duyệt hoặc khôi phục, nguồn AI
+được giữ từ revision tương ứng. Nội dung sửa tay sau AI vẫn giữ snapshot AI như
+nguồn tối thiểu đã biết, không tự gán toàn bộ nhóm nguồn cho AI.
+
+`aiDefinitionHashes` ghi fingerprint của định nghĩa/nhãn đã gửi;
+`aiSubfields` ghi các khóa trường con đã gửi để so định nghĩa cùng phạm vi.
+Đổi ý nghĩa định nghĩa hoặc ngôn ngữ nguồn cũng làm đề xuất lỗi thời.
+
+API key/model chỉ cấu hình server. TASK 07.1 mặc định gọi Gemini `gemini-3.8-flash`
+qua `generateContent` + `responseFormat` JSON, không tools hoặc retry.
+Chỉ model này được chấp nhận cho Gemini, không tự đổi model/provider khi hết quota.
+OpenAI Responses (`store: false`) chỉ dùng khi đặt rõ `AI_PROVIDER=openai`.
+Output là JSON các đoạn văn bản thuần, được
+validate giới hạn rồi chuyển qua schema Tiptap hiện có. Preview chỉ chứa tên OC,
+ngôn ngữ nguồn, giá trị đã lọc và nhãn/ý nghĩa định nghĩa của các trường đó.
+
+Preview Gemini nêu Google có thể dùng nội dung Free Tier để cải thiện sản phẩm.
+App không xác minh billing project từ key; người dùng phải chọn project Free Tier
+chưa bật billing. Không thay đổi lưu trữ/snapshot/history hoặc thêm migration.
+
+### Điểm mở rộng
+
+Nếu sau này cần giữ ứng viên qua lần khởi động lại, có thể đặc tả lưu trữ bền vững
+riêng. TASK 07 giữ ứng viên tạm; lịch sử chỉ ghi khi người dùng áp dụng.
 
 ## 14. Bảng được trì hoãn
 
