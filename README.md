@@ -2,7 +2,7 @@
 
 Ứng dụng web cá nhân để tạo, quản lý và biên tập hồ sơ nhân vật hư cấu (Original Characters) phục vụ viết truyện và roleplay.
 
-> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02, 02.1, 03) và tầng lưu trữ PostgreSQL + repositories (TASK 03) — xem `docs/`. Chưa có giao diện CRUD nhân vật, editor, AI hay xuất PDF.
+> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02–03), lưu trữ PostgreSQL (TASK 03) và giao diện thư viện nhân vật (TASK 04): tạo / xem / sửa thông tin cơ bản / xóa OC, tìm kiếm, sắp xếp, yêu thích, thẻ, bộ sưu tập, ảnh đại diện và ảnh tham khảo. Chưa có trình biên tập dữ kiện đầy đủ, AI hay xuất PDF.
 
 ## Yêu cầu môi trường
 
@@ -65,9 +65,14 @@ Không dùng `drizzle-kit push` cho database thật.
 ## Chạy ứng dụng
 
 ```bash
+pnpm db:migrate    # lần đầu, hoặc sau khi có migration mới
 pnpm dev           # http://localhost:3000
 pnpm build && pnpm start   # bản production
 ```
+
+### Ảnh tải lên
+
+Ảnh được lưu trên đĩa ở `MEDIA_STORAGE_DIR` (mặc định `<thư mục dự án>/storage`, ngoài `public/` và đã nằm trong `.gitignore`). Database chỉ lưu metadata và storage key; ảnh được phục vụ qua `GET /media/<id>` (tra cứu theo id trong database, không bao giờ theo đường dẫn do client gửi). Chấp nhận PNG, JPEG, WebP, GIF tối đa 8 MB — loại tệp được xác định bằng chữ ký tệp, không tin phần mở rộng hay MIME do trình duyệt gửi. Hãy sao lưu thư mục này cùng với database.
 
 ## Kiểm tra chất lượng
 
@@ -77,12 +82,12 @@ pnpm lint          # ESLint
 pnpm format:check  # Prettier (pnpm format để tự sửa)
 pnpm test          # Vitest (unit) — không cần PostgreSQL
 pnpm test:integration  # Vitest với PostgreSQL thật, trên database riêng *_test
-pnpm test:e2e      # Playwright (tự khởi động pnpm dev nếu chưa chạy)
+pnpm test:e2e      # Playwright — tự khởi động server riêng trên cổng 3210
 ```
 
 Integration tests dùng `TEST_DATABASE_URL` (đặt trong `.env.test.local`) hoặc tự suy ra từ `DATABASE_URL` bằng cách thêm hậu tố `_test` vào tên database (`oc_studio` → `oc_studio_test`). Database test được tạo tự động nếu chưa có; helper từ chối chạy trên database không kết thúc bằng `_test`.
 
-Lần đầu chạy E2E cần cài trình duyệt: `pnpm exec playwright install chromium`.
+E2E chạy trên database riêng `<tên>_e2e_test` (tạo, migrate và làm trống tự động) và thư mục ảnh `storage/e2e-test`, với server riêng ở cổng 3210 — không bao giờ dùng lại dev server đang chạy, nên không thể ghi vào dữ liệu thật. Lần đầu cần cài trình duyệt: `pnpm exec playwright install chromium` (hoặc dùng Chrome đã cài: `PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e`).
 
 ## Cấu trúc dự án
 
@@ -91,26 +96,30 @@ src/
 ├── app/                      # Routes (App Router) — chỉ ghép UI, không chứa business logic
 │   ├── (dashboard)/          # Các trang trong application shell (sidebar + topbar)
 │   │   ├── page.tsx          #   /            Tổng quan
-│   │   ├── characters/       #   /characters  Thư viện nhân vật
-│   │   ├── collections/      #   /collections Bộ sưu tập
+│   │   ├── characters/       #   /characters, /characters/[id]  Thư viện và hồ sơ nhân vật
+│   │   ├── collections/      #   /collections, /collections/[id] Bộ sưu tập
 │   │   ├── templates/        #   /templates   Mẫu hồ sơ
 │   │   └── settings/         #   /settings    Cài đặt
 │   ├── api/health/           # GET /api/health
+│   ├── media/[id]/           # GET /media/:id — phục vụ ảnh đã tải lên
 │   ├── layout.tsx            # Root layout: fonts, ThemeProvider, TooltipProvider
 │   ├── not-found.tsx
 │   └── globals.css           # Tailwind + design tokens (CSS variables, light/dark)
 ├── components/
 │   ├── ui/                   # shadcn/ui primitives (sinh bằng CLI)
 │   ├── layout/               # AppSidebar, AppTopbar, ThemeToggle
-│   ├── shared/               # PageHeader, EmptyState, UnavailableAction
+│   ├── shared/               # PageHeader, EmptyState, UnavailableAction, ConfirmDialog, CharacterAvatar
 │   └── providers/            # ThemeProvider
 ├── features/                 # Module theo nghiệp vụ
 │   ├── characters/
 │   │   ├── domain/           #   Character Fact domain v3 (types, Zod schemas, definitions, migration,
 │   │   │                     #   traceability, AI fact filtering, presentation rules) — chỉ phụ thuộc zod
-│   │   ├── server/           #   Repositories: nhân vật, định nghĩa trường dùng chung (server-only)
-│   │   └── components/       #   CharacterCard
-│   ├── library/server/       #   Repositories: tags, collections, media metadata
+│   │   ├── server/           #   Repositories + truy vấn thư viện (server-only)
+│   │   ├── actions.ts        #   Server Actions: tạo, sửa thông tin cơ bản, yêu thích, xóa
+│   │   ├── basic-info.ts     #   Form thông tin cơ bản ⇄ facts (dùng chung client/server)
+│   │   └── components/       #   Thẻ nhân vật, danh sách, toolbar, hộp thoại
+│   ├── library/              #   Thẻ, bộ sưu tập: repositories, Server Actions, components
+│   ├── media/                #   Ảnh: nhận diện chữ ký tệp, storage (local), upload, Server Actions
 │   ├── settings/             #   ThemeSelector, theme options
 │   └── system-status/        #   Trạng thái ứng dụng / database
 ├── db/
@@ -123,7 +132,7 @@ src/
 ├── config/navigation.ts      # Định nghĩa menu
 ├── i18n/                     # Chuỗi giao diện tiếng Việt (sẵn cho i18n sau này)
 ├── hooks/
-├── lib/                      # env (Zod), utils
+├── lib/                      # env (Zod), utils, ActionResult, định dạng ngày
 └── test/                     # Helpers cho integration tests (database *_test)
 docs/                         # Thiết kế: dữ kiện nhân vật, quyết định domain, database, migrations
 scripts/db-check.ts           # pnpm db:check

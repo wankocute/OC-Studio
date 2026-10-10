@@ -1,50 +1,106 @@
-import { BookUser, Plus, Search } from "lucide-react";
-import type { Metadata } from "next";
+import { BookUser, SearchX } from "lucide-react";
+import type { Metadata, Route } from "next";
+import Link from "next/link";
+import { Suspense } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { UnavailableAction } from "@/components/shared/unavailable-action";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { getDb } from "@/db";
+import { CreateCharacterButton } from "@/features/characters/components/character-actions";
+import {
+  CharacterList,
+  CharacterListSkeleton,
+} from "@/features/characters/components/character-list";
+import { LibraryToolbar } from "@/features/characters/components/library-toolbar";
+import {
+  DEFAULT_LIBRARY_PARAMS,
+  hasActiveFilters,
+  libraryQueryString,
+  parseLibraryParams,
+} from "@/features/characters/library-params";
+import { listLibraryCharacters } from "@/features/characters/server/library-queries";
+import { createTagRepository } from "@/features/library/server/tag-repository";
 import { messages } from "@/i18n";
 
 const t = messages.characters;
 
 export const metadata: Metadata = { title: t.title };
 
-export default function CharactersPage() {
+async function Library({
+  searchParams,
+}: {
+  searchParams: PageProps<"/characters">["searchParams"];
+}) {
+  const params = parseLibraryParams(await searchParams);
+  const db = getDb();
+  const [characters, tags] = await Promise.all([
+    listLibraryCharacters(db, {
+      q: params.q,
+      sort: params.sort,
+      favorites: params.favorites,
+      tagId: params.tagId,
+    }),
+    createTagRepository(db).list(),
+  ]);
+  const filtered = hasActiveFilters(params);
+
+  return (
+    <div className="space-y-5">
+      <LibraryToolbar params={params} tags={tags.map(({ id, name }) => ({ id, name }))} />
+
+      {characters.length === 0 ? (
+        filtered ? (
+          <EmptyState
+            icon={SearchX}
+            title={t.noResultsTitle}
+            description={t.noResultsBody}
+            action={
+              <Button asChild variant="outline">
+                <Link
+                  href={
+                    `/characters${libraryQueryString({ ...DEFAULT_LIBRARY_PARAMS, sort: params.sort, view: params.view })}` as Route
+                  }
+                >
+                  {t.clearFilters}
+                </Link>
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={BookUser}
+            title={t.emptyTitle}
+            description={t.emptyBody}
+            action={<CreateCharacterButton />}
+          />
+        )
+      ) : (
+        <section aria-label={t.title} className="space-y-3">
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {t.resultCount(characters.length)}
+          </p>
+          <CharacterList characters={characters} view={params.view} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+export default function CharactersPage(props: PageProps<"/characters">) {
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t.title}
-        description={t.description}
-        actions={<UnavailableAction label={t.create} icon={Plus} />}
-      />
-
-      <div role="search" className="relative max-w-md">
-        <Label htmlFor="character-search" className="sr-only">
-          {t.searchLabel}
-        </Label>
-        <Search
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          id="character-search"
-          type="search"
-          placeholder={t.searchPlaceholder}
-          className="h-9 pl-8"
-          disabled
-          aria-describedby="character-search-hint"
-        />
-        <p id="character-search-hint" className="sr-only">
-          {messages.common.notAvailableYet}
-        </p>
-      </div>
-
-      <section aria-label={t.title}>
-        <EmptyState icon={BookUser} title={t.emptyTitle} description={t.emptyBody} />
-      </section>
+      <PageHeader title={t.title} description={t.description} actions={<CreateCharacterButton />} />
+      <Suspense
+        fallback={
+          <div className="space-y-5">
+            <div className="h-9 w-full max-w-sm animate-pulse rounded-lg bg-muted/70" />
+            <CharacterListSkeleton />
+          </div>
+        }
+      >
+        <Library searchParams={props.searchParams} />
+      </Suspense>
     </div>
   );
 }

@@ -243,7 +243,14 @@ Mức cô lập: READ COMMITTED mặc định; tính đúng dựa trên khóa d�
 - `media_assets` thuộc thư viện; `character_media` gắn ảnh vào OC. Một ảnh có thể dùng cho nhiều OC.
 - `storage_key` là khóa trung lập với nơi lưu (ví dụ `media/2026/10/<uuid>.webp`); adapter lưu trữ (task sau) ánh xạ sang đường dẫn đĩa hoặc URL object storage. Chuyển nơi lưu chỉ đổi cấu hình/adapter, không đổi dòng và không đổi character facts (facts không chứa đường dẫn ảnh).
 - Xóa OC (hard delete, tương lai) xóa liên kết; ảnh còn lại để dọn dẹp riêng. `media_id ON DELETE RESTRICT` ngăn xóa ảnh đang được dùng.
-- "Ảnh chính" (`is_primary`) độc lập với vai trò: có thể là avatar hoặc ảnh tham khảo; tối đa một mỗi OC.
+- "Ảnh chính" (`is_primary`) độc lập với vai trò: có thể là avatar hoặc ảnh tham khảo; tối đa một mỗi OC. (TASK 04 dùng avatar làm ảnh của nhân vật; chưa có UI chọn ảnh chính.)
+
+### Lưu trữ và phục vụ ảnh (TASK 04)
+
+- `MediaStorage` (`src/features/media/server/storage.ts`): `put` / `get` / `delete` theo storage key. Bản hiện tại là `LocalFileStorage` tại `MEDIA_STORAGE_DIR` (mặc định `<dự án>/storage`, ngoài `public/`). Key do server sinh (`media/YYYY/MM/<uuid>.<ext>`), được kiểm tra bằng regex và đường dẫn phân giải phải nằm trong thư mục gốc ⇒ không có path traversal. Ghi qua file tạm rồi đổi tên (không để lại file dở dang).
+- Upload (`uploadCharacterImage`): kiểm tra kích thước (≤ 8 MB; body Server Action giới hạn 9 MB) → nhận diện **chữ ký tệp** (PNG/JPEG/GIF/WebP; SVG bị từ chối) và kích thước ảnh từ header → ghi file → `createAndAttach` (một transaction: tạo `media_assets`, gắn `character_media`, thay avatar cũ). Nếu bước database lỗi, file vừa ghi bị xóa. Avatar bị thay và ảnh bị gỡ được xóa (dòng + file) khi không còn nhân vật nào dùng (`deleteIfUnused`).
+- Phục vụ: `GET /media/[id]` tra `media_assets` theo UUID, đọc qua storage, trả `Content-Type` đã nhận diện, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, cache dài hạn (một id không bao giờ đổi nội dung). Client không bao giờ gửi đường dẫn.
+- Còn tồn tại: nếu xóa file của ảnh bị thay thất bại sau khi transaction đã commit, file mồ côi chỉ được ghi log (chưa có tác vụ dọn dẹp định kỳ).
 
 ## 11. Lỗi có cấu trúc
 
@@ -255,15 +262,16 @@ Lỗi driver được chuyển đổi (23505 → `duplicate`, 40P01/40001 → `c
 
 ## 12. Repositories (TASK 03)
 
-| Repository                              | Phương thức                                                                                              |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `createCharacterRepository(db)`         | `create`, `getById`, `list`, `update`, `setFavorite`, `softDelete`                                       |
-| `createLibraryDefinitionRepository(db)` | `load`, `listFields`, `createGroup`, `createField`, `updateField`, `deprecateField`, `deleteUnusedField` |
-| `createTagRepository(db)`               | `create`, `list`, `attach`, `detach`, `listForCharacter`                                                 |
-| `createCollectionRepository(db)`        | `create`, `list`, `addCharacter`, `removeCharacter`, `listCharacters`                                    |
-| `createMediaRepository(db)`             | `createAsset`, `attach`, `setPrimary`, `detach`, `listForCharacter`                                      |
+| Repository                                                 | Phương thức                                                                                                                                                                                                            |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createCharacterRepository(db)`                            | `create`, `getById`, `list`, `update`, `setFavorite`, `softDelete`                                                                                                                                                     |
+| `createLibraryDefinitionRepository(db)`                    | `load`, `listFields`, `createGroup`, `createField`, `updateField`, `deprecateField`, `deleteUnusedField`                                                                                                               |
+| `createTagRepository(db)`                                  | `create`, `list`, `get`, `findByName` (không phân biệt hoa thường), `attach`, `detach`, `listForCharacter`                                                                                                             |
+| `createCollectionRepository(db)`                           | `create`, `list`, `get`, `listWithCounts`, `count`, `update` (đổi tên/mô tả), `delete` (chỉ xóa bộ sưu tập và liên kết — nhân vật giữ nguyên), `listForCharacter`, `addCharacter`, `removeCharacter`, `listCharacters` |
+| `createMediaRepository(db)`                                | `createAsset`, `getAsset`, `createAndAttach`, `deleteIfUnused`, `attach`, `setPrimary`, `detach`, `listForCharacter`                                                                                                   |
+| `listLibraryCharacters(db, filter)`, `getLibraryStats(db)` | Truy vấn chỉ đọc cho thư viện: tìm theo tên (ILIKE, escape ký tự đại diện), sắp xếp theo tên/ngày tạo/ngày cập nhật, lọc yêu thích/thẻ/bộ sưu tập; kèm avatar, thẻ và tóm tắt                                          |
 
-Hàm factory nhận `db` (production: `getDb()`; test: database test). Tất cả `import "server-only"`; không có REST API hay Server Action ở TASK 03.
+Hàm factory nhận `db` (production: `getDb()`; test: database test). Tất cả `import "server-only"`. Từ TASK 04, giao diện gọi chúng qua Server Actions (`src/features/*/actions.ts`); không có REST API.
 
 ## 13. Bảng được trì hoãn
 

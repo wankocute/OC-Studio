@@ -47,9 +47,14 @@ function loadEnvironment(): void {
   }
 }
 
-export function resolveTestDatabaseUrl(): string {
+/**
+ * `suffix` lets suites use separate databases (integration: `_test`, E2E: `_e2e_test`).
+ * An explicit TEST_DATABASE_URL applies to the default suffix only.
+ */
+export function resolveTestDatabaseUrl(suffix = "_test"): string {
+  if (!suffix.endsWith("_test")) throw new Error("Test database suffixes must end with _test.");
   loadEnvironment();
-  const explicit = process.env.TEST_DATABASE_URL?.trim();
+  const explicit = suffix === "_test" ? process.env.TEST_DATABASE_URL?.trim() : undefined;
   const main = process.env.DATABASE_URL?.trim();
   if (!explicit && !main) {
     throw new Error(
@@ -58,7 +63,7 @@ export function resolveTestDatabaseUrl(): string {
   }
 
   const url = new URL(explicit || main!);
-  if (!explicit) url.pathname = `/${databaseName(main!)}_test`;
+  if (!explicit) url.pathname = `/${databaseName(main!)}${suffix}`;
   const name = databaseName(url.toString());
 
   if (!/^[a-z0-9_]+_test$/.test(name)) {

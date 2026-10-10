@@ -1,35 +1,30 @@
+import { Star } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
+import { CharacterAvatar } from "@/components/shared/character-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
 
-/**
- * Presentation-only props. Intentionally decoupled from the (not yet defined) character
- * domain model: a mapper will build these from real records in a later task.
- */
+/** Presentation-only props; `listLibraryCharacters` provides the data. */
 export type CharacterCardProps = {
   name: string;
   summary?: string;
   tags?: readonly string[];
-  /** Pre-formatted, locale-aware label, e.g. "3 ngày trước". */
+  /** Pre-formatted, locale-aware label. */
   updatedLabel?: string;
   href?: Route;
+  avatarMediaId?: string | null;
+  isFavorite?: boolean;
+  /** Interactive controls (favourite, menu) rendered above the card's link overlay. */
+  actions?: ReactNode;
   className?: string;
 };
 
 const MAX_VISIBLE_TAGS = 3;
-
-function getInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const initials = words.length > 1 ? [words[0], words.at(-1)] : words;
-  return initials
-    .map((word) => word?.[0]?.toLocaleUpperCase("vi") ?? "")
-    .join("")
-    .slice(0, 2);
-}
 
 export function CharacterCard({
   name,
@@ -37,6 +32,9 @@ export function CharacterCard({
   tags = [],
   updatedLabel,
   href,
+  avatarMediaId,
+  isFavorite = false,
+  actions,
   className,
 }: CharacterCardProps) {
   const displayName = name.trim() || messages.characters.untitled;
@@ -52,20 +50,23 @@ export function CharacterCard({
       )}
     >
       <CardHeader className="flex items-center gap-3">
-        <div
-          aria-hidden
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent font-heading text-base font-semibold text-accent-foreground"
-        >
-          {getInitials(displayName) || "?"}
-        </div>
-        <div className="min-w-0">
-          <CardTitle className="truncate">
-            {href ? (
-              <Link href={href} className="outline-none after:absolute after:inset-0">
-                {displayName}
-              </Link>
-            ) : (
-              displayName
+        <CharacterAvatar name={displayName} mediaId={avatarMediaId} size="md" />
+        <div className="min-w-0 flex-1">
+          <CardTitle className="flex items-center gap-1.5">
+            <span className="truncate">
+              {href ? (
+                <Link href={href} className="outline-none after:absolute after:inset-0">
+                  {displayName}
+                </Link>
+              ) : (
+                displayName
+              )}
+            </span>
+            {isFavorite && (
+              <Star
+                className="size-3.5 shrink-0 fill-warning text-warning"
+                aria-label={messages.characters.favorite}
+              />
             )}
           </CardTitle>
           {updatedLabel && (
@@ -74,6 +75,7 @@ export function CharacterCard({
             </CardDescription>
           )}
         </div>
+        {actions && <div className="relative z-10 flex shrink-0 items-center gap-1">{actions}</div>}
       </CardHeader>
 
       {(summary || visibleTags.length > 0) && (

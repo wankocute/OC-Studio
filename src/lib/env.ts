@@ -9,6 +9,8 @@ const serverEnvSchema = z.object({
       error: "DATABASE_URL phải là URL PostgreSQL hợp lệ (postgresql://...).",
     })
     .optional(),
+  /** Directory for uploaded images (outside `public/`). Defaults to `<project>/storage`. */
+  MEDIA_STORAGE_DIR: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

@@ -33,7 +33,7 @@ pnpm lint           # ESLint (flat config)
 pnpm format         # Prettier
 pnpm test           # Vitest unit tests (src/**/*.test.ts[x], no database)
 pnpm test:integration  # Vitest + real PostgreSQL on a *_test database (src/**/*.int.test.ts)
-pnpm test:e2e       # Playwright (e2e/)
+pnpm test:e2e       # Playwright (e2e/) — own server on :3210, own *_e2e_test DB and media dir
 pnpm db:check       # read-only connectivity check
 pnpm db:generate | db:migrate | db:studio
 ```
@@ -87,6 +87,18 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - DDL: `pnpm db:generate --name=…`, review the SQL, then `pnpm db:migrate`. Never `drizzle-kit push`, never destructive SQL on databases with data, back up first. Old JSON is migrated on read (in memory) and saved at the current version on the next update.
 - Integration tests only touch databases whose name ends in `_test` (`src/test/test-database.ts` enforces it). Never run them against `DATABASE_URL`.
 - No tables for profiles, AI generations or templates until those are specified.
+
+## Server Actions & UI data flow
+
+- Mutations are Server Actions in `src/features/*/actions.ts` (`"use server"`). Every action takes `unknown` inputs, validates them with Zod (ids are UUIDs), calls repositories, and returns `ActionResult` (`src/lib/action-result.ts`) — never throws to the client. Map errors with `failFromError`.
+- After a mutation call `refresh()` (`next/cache`) so the current route re-renders in the same response. Skip it when the client navigates away (e.g. deleting from the detail page).
+- Client Components may only `import type` from `@/lib/action-result` (it is server-only); use `@/lib/action-result-client` for helpers.
+- Edits that carry a `revision` must handle `revision_conflict` without losing or silently resubmitting stale input (see `BasicInfoDialog`).
+- Basic info edits go through `applyBasicInfo`: it rereads stored facts and changes only the six basic fields; fields in `explicit_none` / `not_applicable` / unsupported shapes are locked.
+- List state (search, sort, filters, view) lives in the URL (`library-params.ts`).
+- Images: never trust client MIME or file names — `detectImage` (file signature) decides the type; files go through `MediaStorage` (`src/features/media/server/storage.ts`) using generated keys only, and are served by `/media/[id]` (lookup by id). On a failed DB write the stored file is deleted; unused assets are cleaned up.
+- Dynamic routes and anything reading request data (DB, `params`, `searchParams`, `usePathname`) sit inside `<Suspense>` (Cache Components).
+- E2E tests must never use the developer database: Playwright starts its own server with `DATABASE_URL` pointing at `*_e2e_test` (`e2e/environment.ts`). Wait for hydration before interacting (see `openDialog` in `e2e/characters.spec.ts`).
 
 ## Next.js 16 conventions
 

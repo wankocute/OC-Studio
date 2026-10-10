@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Database } from "@/db";
@@ -34,22 +34,109 @@ const mediaAssetInputSchema = z
 
 export type MediaAssetInput = z.input<typeof mediaAssetInputSchema>;
 
+function parseAsset(input: MediaAssetInput) {
+  const result = mediaAssetInputSchema.safeParse(input);
+  if (!result.success) {
+    throw new RepositoryError("validation_failed", {
+      issues: result.error.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+  return result.data;
+}
+
 export function createMediaRepository(db: Database) {
   return {
     createAsset: (input: MediaAssetInput) =>
       guard(async () => {
-        const result = mediaAssetInputSchema.safeParse(input);
-        if (!result.success) {
-          throw new RepositoryError("validation_failed", {
-            issues: result.error.issues.map((issue) => ({
-              path: issue.path.join("."),
-              message: issue.message,
-            })),
-          });
-        }
-        const [row] = await db.insert(mediaAssets).values(result.data).returning();
+        const [row] = await db.insert(mediaAssets).values(parseAsset(input)).returning();
         return row!;
       }),
+
+    getAsset: (id: string) =>
+      guard(async () => {
+        const [row] = await db.select().from(mediaAssets).where(eq(mediaAssets.id, id));
+        if (!row) throw new RepositoryError("not_found", { entity: "media_asset", id });
+        return row;
+      }),
+
+    /**
+     * Record a stored file and attach it to a character in one transaction. An avatar replaces
+     * the current avatar link; references go to the end of the gallery. Returns the replaced
+     * avatar's id so the caller can clean it up if nothing else uses it.
+     */
+    createAndAttach: (input: MediaAssetInput, target: { characterId: string; role: MediaRole }) =>
+      guard(() =>
+        db.transaction(async (tx) => {
+          if (!MEDIA_ROLES.includes(target.role)) {
+            throw new RepositoryError("validation_failed", {
+              issues: [{ path: "role", message: "Vai trò ảnh không hợp lệ." }],
+            });
+          }
+          await assertActiveCharacter(tx, target.characterId);
+          const [asset] = await tx.insert(mediaAssets).values(parseAsset(input)).returning();
+
+          let replacedMediaId: string | null = null;
+          let position = 0;
+          if (target.role === "avatar") {
+            const [previous] = await tx
+              .delete(characterMedia)
+              .where(
+                and(
+                  eq(characterMedia.characterId, target.characterId),
+                  eq(characterMedia.role, "avatar"),
+                ),
+              )
+              .returning({ mediaId: characterMedia.mediaId });
+            replacedMediaId = previous?.mediaId ?? null;
+          } else {
+            const [last] = await tx
+              .select({ next: sql<number>`coalesce(max(${characterMedia.position}) + 1, 0)` })
+              .from(characterMedia)
+              .where(
+                and(
+                  eq(characterMedia.characterId, target.characterId),
+                  eq(characterMedia.role, "reference"),
+                ),
+              );
+            position = Number(last?.next ?? 0);
+          }
+
+          await tx.insert(characterMedia).values({
+            characterId: target.characterId,
+            mediaId: asset!.id,
+            role: target.role,
+            position,
+          });
+          return { asset: asset!, replacedMediaId };
+        }),
+      ),
+
+    /**
+     * Delete an asset row that no character uses any more. Returns its storage key (so the
+     * caller deletes the file after the transaction) or `null` when it is still in use.
+     */
+    deleteIfUnused: (mediaId: string) =>
+      guard(() =>
+        db.transaction(async (tx) => {
+          const [asset] = await tx
+            .select({ storageKey: mediaAssets.storageKey })
+            .from(mediaAssets)
+            .where(eq(mediaAssets.id, mediaId))
+            .for("update");
+          if (!asset) return null;
+          const [link] = await tx
+            .select({ mediaId: characterMedia.mediaId })
+            .from(characterMedia)
+            .where(eq(characterMedia.mediaId, mediaId))
+            .limit(1);
+          if (link) return null;
+          await tx.delete(mediaAssets).where(eq(mediaAssets.id, mediaId));
+          return asset.storageKey;
+        }),
+      ),
 
     /** Attach an asset to a character. At most one avatar per character (`duplicate` otherwise). */
     attach: (input: { characterId: string; mediaId: string; role: MediaRole; position?: number }) =>
@@ -113,6 +200,7 @@ export function createMediaRepository(db: Database) {
           .select({
             mediaId: mediaAssets.id,
             storageKey: mediaAssets.storageKey,
+            originalFilename: mediaAssets.originalFilename,
             mimeType: mediaAssets.mimeType,
             width: mediaAssets.width,
             height: mediaAssets.height,

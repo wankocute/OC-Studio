@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Lora } from "next/font/google";
 
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DEFAULT_LOCALE, messages } from "@/i18n";
 
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           disableTransitionOnChange
         >
           <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+          <Toaster position="bottom-right" closeButton />
         </ThemeProvider>
       </body>
     </html>

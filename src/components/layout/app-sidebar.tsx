@@ -3,6 +3,7 @@
 import { Feather } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 
 import {
   Sidebar,
@@ -26,14 +27,14 @@ import {
 } from "@/config/navigation";
 import { messages } from "@/i18n";
 
-function NavMenu({ items }: { items: readonly NavItem[] }) {
-  const pathname = usePathname();
+/** `pathname` is `null` in the prerendered fallback (no item highlighted yet). */
+function NavMenuItems({ items, pathname }: { items: readonly NavItem[]; pathname: string | null }) {
   const { isMobile, setOpenMobile } = useSidebar();
 
   return (
     <SidebarMenu>
       {items.map((item) => {
-        const active = isNavItemActive(item, pathname);
+        const active = pathname !== null && isNavItemActive(item, pathname);
         return (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
@@ -52,6 +53,22 @@ function NavMenu({ items }: { items: readonly NavItem[] }) {
         );
       })}
     </SidebarMenu>
+  );
+}
+
+function ActiveNavMenu({ items }: { items: readonly NavItem[] }) {
+  return <NavMenuItems items={items} pathname={usePathname()} />;
+}
+
+/**
+ * The current path is request data on dynamic routes; the Suspense boundary keeps the rest of
+ * the shell prerendered and streams the active highlight in.
+ */
+function NavMenu({ items }: { items: readonly NavItem[] }) {
+  return (
+    <Suspense fallback={<NavMenuItems items={items} pathname={null} />}>
+      <ActiveNavMenu items={items} />
+    </Suspense>
   );
 }
 

@@ -45,8 +45,20 @@ test("navigation works from the sidebar", async ({ page, isMobile }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Thư viện nhân vật" })).toBeVisible();
 });
 
-test("unimplemented actions are disabled, not fake", async ({ page }) => {
+test("library controls are live; unimplemented features stay visibly disabled", async ({
+  page,
+}) => {
   await page.goto("/characters");
-  await expect(page.getByRole("button", { name: "Tạo nhân vật" })).toBeDisabled();
-  await expect(page.getByRole("searchbox", { name: "Tìm kiếm nhân vật" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Tạo nhân vật" }).first()).toBeEnabled();
+  await expect(page.getByRole("searchbox", { name: "Tìm kiếm nhân vật" })).toBeEnabled();
+
+  // A character page offers the future Fact Editor only as a disabled, labelled control.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Tạo nhân vật" }).first().click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await page.getByRole("dialog").getByLabel("Tên hiển thị").fill(`Vỏ ${Date.now()}`);
+  await page.getByRole("dialog").getByRole("button", { name: "Tạo", exact: true }).click();
+  await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole("button", { name: "Trình biên tập dữ kiện" })).toBeDisabled();
 });

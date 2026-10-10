@@ -154,3 +154,36 @@ describe("media metadata", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("collection management", () => {
+  it("renames and re-describes a collection, keeping names unique", async () => {
+    const a = await collectionRepository.create({ name: "Cũ" });
+    await collectionRepository.create({ name: "Khác" });
+    const renamed = await collectionRepository.update(a.id, { name: "Mới", description: "Mô tả" });
+    expect(renamed).toMatchObject({ name: "Mới", description: "Mô tả" });
+    await expectError(collectionRepository.update(a.id, { name: "khác" }), "duplicate");
+  });
+
+  it("deleting a collection keeps its characters", async () => {
+    const world = await collectionRepository.create({ name: "Thế giới" });
+    await collectionRepository.addCharacter(world.id, characterId);
+    await collectionRepository.delete(world.id);
+    expect(await collectionRepository.list()).toEqual([]);
+    const character = await characterRepository.getById(characterId);
+    expect(character.facts.displayName).toBe("Khải");
+    await expectError(collectionRepository.delete(world.id), "not_found");
+  });
+
+  it("counts only active characters", async () => {
+    const world = await collectionRepository.create({ name: "Thế giới" });
+    const other = (await characterRepository.create({ ...sampleMinimal, displayName: "An" })).id;
+    await collectionRepository.addCharacter(world.id, characterId);
+    await collectionRepository.addCharacter(world.id, other);
+    await characterRepository.softDelete(other, 1);
+    const [summary] = await collectionRepository.listWithCounts();
+    expect(summary).toMatchObject({ name: "Thế giới", characterCount: 1 });
+    expect(await collectionRepository.listForCharacter(characterId)).toEqual([
+      { id: world.id, name: "Thế giới" },
+    ]);
+  });
+});

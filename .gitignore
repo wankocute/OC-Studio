@@ -17,6 +17,9 @@
 # production
 /build
 
+# uploaded media (local storage) and test artifacts
+/storage
+
 # misc
 .DS_Store
 *.pem

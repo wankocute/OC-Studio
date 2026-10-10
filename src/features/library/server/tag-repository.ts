@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Database } from "@/db";
@@ -40,6 +40,23 @@ export function createTagRepository(db: Database) {
       }),
 
     list: () => guard(() => db.select().from(tags).orderBy(asc(tags.name))),
+
+    get: (id: string) =>
+      guard(async () => {
+        const [row] = await db.select().from(tags).where(eq(tags.id, id));
+        if (!row) throw new RepositoryError("not_found", { entity: "tag", id });
+        return row;
+      }),
+
+    /** Case-insensitive lookup, matching the uniqueness rule. */
+    findByName: (name: string) =>
+      guard(async () => {
+        const [row] = await db
+          .select()
+          .from(tags)
+          .where(sql`lower(${tags.name}) = lower(${parseName(name)})`);
+        return row ?? null;
+      }),
 
     /** Idempotent. */
     attach: (characterId: string, tagId: string) =>
