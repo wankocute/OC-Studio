@@ -1,11 +1,10 @@
 import { ArrowLeft, FileText, Info, LibraryBig, Tag } from "lucide-react";
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
 
-import { UnavailableAction } from "@/components/shared/unavailable-action";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/db";
@@ -98,6 +97,9 @@ async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]
               ))}
             </ul>
           )}
+          <Button asChild size="sm" variant="outline" className="mt-3">
+            <Link href={`/characters/${record.id}/edit` as Route}>{t.reviewInEditor}</Link>
+          </Button>
         </section>
       )}
 
@@ -161,7 +163,12 @@ async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]
             </CardHeader>
             <CardContent className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">{t.factCount(factCount)}</p>
-              <UnavailableAction label={t.factEditor} variant="outline" />
+              <Button asChild>
+                <Link href={`/characters/${record.id}/edit` as Route}>
+                  <FileText data-icon="inline-start" aria-hidden />
+                  {t.openFactEditor}
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </div>

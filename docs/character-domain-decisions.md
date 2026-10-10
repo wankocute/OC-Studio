@@ -187,9 +187,9 @@ Migration không thể xác định ⇒ không đoán: giới tính và `not_app
 ### Còn mở
 
 - **Khôi phục OC đã xóa:** chưa có thao tác restore. Khi làm: không tự liên kết lại; có thể _gợi ý_ các tham chiếu có `detachedFrom.characterId` trùng với OC được khôi phục, người dùng xác nhận từng cái.
-- **Review sau migration bị mất khi ghi tự động:** nếu một OC v1 bị viết lại vì OC nó tham chiếu bị xóa, `not_applicable_may_mean_none` không còn được tính lại (dữ liệu vẫn nguyên vẹn; `identity.gender` vẫn là trường deprecated hiển thị `hidden_with_data`). Cần quyết định có lưu danh sách review hay không khi làm UI.
+- **Review sau migration bị mất khi ghi tự động:** nếu một OC v1 bị viết lại vì OC nó tham chiếu bị xóa, `not_applicable_may_mean_none` không còn được tính lại (dữ liệu vẫn nguyên vẹn; `identity.gender` vẫn là trường deprecated hiển thị `hidden_with_data`). TASK 05 không lưu danh sách review (không thêm cột); thay vào đó trình biên tập và hộp thoại thông tin cơ bản **không ghi** OC còn mục cần xem lại cho tới khi người dùng xác nhận từng mục (`migration_review_required`). Trường hợp xóa OC vẫn còn mở.
 - Lưu lựa chọn "cho phép gửi dữ kiện nhạy cảm" trong một phiên làm việc (domain chỉ nhận theo request).
-- UI gợi ý `displayName` và quan hệ ngược.
+- UI gợi ý `displayName`. (Quan hệ ngược: TASK 05 hiển thị gợi ý dựa trên chỉ mục `character_references`; người dùng tự bấm để thêm, hệ thống chỉ điền nhân vật, không điền loại quan hệ.)
 
 ## 9. Giả định kỹ thuật
 

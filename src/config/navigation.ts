@@ -6,6 +6,7 @@ import {
   type LucideIcon,
   NotebookTabs,
   Settings,
+  Shapes,
 } from "lucide-react";
 
 import { messages } from "@/i18n";
@@ -20,6 +21,7 @@ export const mainNavigation: readonly NavItem[] = [
   { href: "/", label: messages.nav.dashboard, icon: LayoutDashboard },
   { href: "/characters", label: messages.nav.characters, icon: BookUser },
   { href: "/collections", label: messages.nav.collections, icon: LibraryBig },
+  { href: "/fields", label: messages.nav.libraryFields, icon: Shapes },
   { href: "/templates", label: messages.nav.templates, icon: NotebookTabs },
 ];
 

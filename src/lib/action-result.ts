@@ -10,10 +10,17 @@ import { messages } from "@/i18n";
 import { fieldErrorsOf } from "./action-result-client";
 
 export type ActionError = {
-  code: RepositoryErrorCode | "invalid_input" | "upload_failed" | "unexpected";
+  code:
+    | RepositoryErrorCode
+    | "invalid_input"
+    | "upload_failed"
+    | "migration_review_required"
+    | "unexpected";
   message: string;
   /** Field name → message, for forms. */
   fieldErrors?: Record<string, string>;
+  /** Full validation issues (dot-joined paths), for editors that place errors themselves. */
+  issues?: { path: string; message: string }[];
 };
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: ActionError };
@@ -49,7 +56,12 @@ export function failFromError(error: unknown): { ok: false; error: ActionError }
         const fieldErrors = Object.fromEntries(
           (issues ?? []).map((issue) => [issue.path.split(".")[0] || "form", issue.message]),
         );
-        return fail({ code: error.code, message: messages.errors.validation_failed, fieldErrors });
+        return fail({
+          code: error.code,
+          message: messages.errors.validation_failed,
+          fieldErrors,
+          ...(issues ? { issues } : {}),
+        });
       }
       case "not_found":
       case "duplicate":
@@ -57,6 +69,9 @@ export function failFromError(error: unknown): { ok: false; error: ActionError }
       case "unsupported_schema":
       case "concurrent_modification":
       case "database_error":
+      case "definition_breaking_change":
+      case "definition_in_use":
+      case "definition_deprecated":
         if (error.code === "database_error") console.error(error.cause ?? error);
         return fail({ code: error.code, message: messages.errors[error.code] });
       default:

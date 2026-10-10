@@ -24,12 +24,17 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"], channel } },
   ],
   webServer: {
-    command: `pnpm dev --port ${E2E_PORT}`,
+    // A production build: no on-demand compilation or hot reloads to slow down or disturb tests.
+    command: `pnpm build && pnpm start --port ${E2E_PORT}`,
     url: baseURL,
     // Always start our own server: an already running dev server would use the real database.
     reuseExistingServer: false,
-    timeout: 180_000,
+    timeout: 600_000,
     // Process env wins over .env.local, so the app talks only to the E2E database and folder.
-    env: { DATABASE_URL: E2E_DATABASE_URL, MEDIA_STORAGE_DIR: E2E_MEDIA_DIR },
+    env: {
+      DATABASE_URL: E2E_DATABASE_URL,
+      MEDIA_STORAGE_DIR: E2E_MEDIA_DIR,
+      NEXT_DIST_DIR: ".next-e2e",
+    },
   },
 });

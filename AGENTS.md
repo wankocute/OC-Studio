@@ -33,7 +33,7 @@ pnpm lint           # ESLint (flat config)
 pnpm format         # Prettier
 pnpm test           # Vitest unit tests (src/**/*.test.ts[x], no database)
 pnpm test:integration  # Vitest + real PostgreSQL on a *_test database (src/**/*.int.test.ts)
-pnpm test:e2e       # Playwright (e2e/) — own server on :3210, own *_e2e_test DB and media dir
+pnpm test:e2e       # Playwright (e2e/) — own production build (.next-e2e) on :3210, own *_e2e_test DB and media dir
 pnpm db:check       # read-only connectivity check
 pnpm db:generate | db:migrate | db:studio
 ```
@@ -98,7 +98,17 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - List state (search, sort, filters, view) lives in the URL (`library-params.ts`).
 - Images: never trust client MIME or file names — `detectImage` (file signature) decides the type; files go through `MediaStorage` (`src/features/media/server/storage.ts`) using generated keys only, and are served by `/media/[id]` (lookup by id). On a failed DB write the stored file is deleted; unused assets are cleaned up.
 - Dynamic routes and anything reading request data (DB, `params`, `searchParams`, `usePathname`) sit inside `<Suspense>` (Cache Components).
-- E2E tests must never use the developer database: Playwright starts its own server with `DATABASE_URL` pointing at `*_e2e_test` (`e2e/environment.ts`). Wait for hydration before interacting (see `openDialog` in `e2e/characters.spec.ts`).
+- E2E tests must never use the developer database: Playwright starts its own server with `DATABASE_URL` pointing at `*_e2e_test` (`e2e/environment.ts`). Wait for hydration before interacting (see `openDialog` in `e2e/characters.spec.ts`, `[data-fact-editor][data-ready]` for the editor). Visited pages stay mounted but hidden (Activity), so match visible elements only. Playwright runs a **production build** (`pnpm build && pnpm start`, `NEXT_DIST_DIR=.next-e2e`): the dev server compiled routes on demand and hot-reloaded under parallel load, which made tests time out and hid a real bug (a button swapped to `type="submit"` during its own click).
+
+## Fact Editor
+
+- `/characters/[id]/edit`. Pure model in `src/features/characters/editor/` (no React): drafts ⇄ facts (`drafts.ts`), layout from definitions (`layout.ts`), errors mapped to field/item/sub-field keys by item **id** (`errors.ts`, `validate.ts`), reducer (`editor-state.ts`), three-way conflict merge (`merge.ts`), migration review (`review.ts`), custom definitions (`custom-fields.ts`). UI in `src/features/characters/components/editor/`.
+- The form is generated from definitions — never add a component per field. A new kind needs a draft shape, `leafToDraft`/`leafDraftToRaw`, a control in `LeafInput` and labels in `vi.ts`.
+- Only touched fields are rebuilt from drafts; every other fact keeps its stored object. Blank input = unspecified (`normalizeFactInput`); states are chosen explicitly in the field menu.
+- Autosave (`useAutosave`): debounced, one request at a time with the latest revision, nothing sent while the sheet is invalid, during a conflict or before a pending migration review is confirmed. "Đã lưu" only after the database answered.
+- Sheets with `pendingMigration.review` are never saved (editor or basic-info dialog) until the user confirms every item (`migration_review_required`).
+- New ids come from `editor/ids.ts` (random, never from labels). Library definitions: only compatible edits, deprecate instead of delete when used.
+- The page keys `FactEditor` on `id:revision` so a preserved (Activity) editor is replaced when the stored sheet changed.
 
 ## Next.js 16 conventions
 

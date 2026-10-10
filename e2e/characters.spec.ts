@@ -254,5 +254,8 @@ test("collections group characters and can be deleted without losing them", asyn
   await expect(page).toHaveURL(/\/collections$/);
   await page.goto(url);
   await expect(page.getByRole("heading", { level: 1, name: character })).toBeVisible();
-  await expect(page.getByText("Chưa thuộc bộ sưu tập nào.")).toBeVisible();
+  // Visited pages stay mounted but hidden (Activity): check the visible copy.
+  await expect(
+    page.getByText("Chưa thuộc bộ sưu tập nào.").filter({ visible: true }),
+  ).toBeVisible();
 });

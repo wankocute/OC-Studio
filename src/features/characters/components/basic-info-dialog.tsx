@@ -118,11 +118,22 @@ export function BasicInfoDialog({
             </Button>
             {conflict ? (
               // `initial` was refreshed by the action; load it instead of saving stale values.
-              <Button type="button" onClick={reset}>
+              // Distinct keys: reusing the DOM button would turn it into "submit" during this very
+              // click (React re-renders before the browser runs the default action) and save.
+              <Button
+                key="load-latest"
+                type="button"
+                // Enabled once the refreshed `initial` has arrived (the action transition ended).
+                disabled={pending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  reset();
+                }}
+              >
                 {messages.characters.loadLatest}
               </Button>
             ) : (
-              <Button type="submit" disabled={pending}>
+              <Button key="submit" type="submit" disabled={pending}>
                 {pending ? pendingLabel : submitLabel}
               </Button>
             )}

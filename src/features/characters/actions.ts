@@ -5,7 +5,8 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { isRepositoryError } from "@/db/repository-errors";
-import { type ActionResult, failFromError, invalidInput, ok } from "@/lib/action-result";
+import { messages } from "@/i18n";
+import { type ActionResult, fail, failFromError, invalidInput, ok } from "@/lib/action-result";
 
 import { applyBasicInfo, basicInfoSchema, createFactsFromBasicInfo } from "./basic-info";
 import { createCharacterRepository } from "./server/character-repository";
@@ -45,6 +46,13 @@ export async function updateCharacterBasicsAction(
   const repository = createCharacterRepository(getDb());
   try {
     const current = await repository.getById(target.data.id);
+    // Saving would store the current version and drop the review list the user has not seen.
+    if ((current.pendingMigration?.review.length ?? 0) > 0) {
+      return fail({
+        code: "migration_review_required",
+        message: messages.errors.migration_review_required,
+      });
+    }
     const facts = applyBasicInfo(current.facts, parsed.data);
     const saved = await repository.update(target.data.id, facts, target.data.revision);
     refresh();

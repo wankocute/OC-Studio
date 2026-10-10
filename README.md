@@ -2,7 +2,7 @@
 
 Ứng dụng web cá nhân để tạo, quản lý và biên tập hồ sơ nhân vật hư cấu (Original Characters) phục vụ viết truyện và roleplay.
 
-> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02–03), lưu trữ PostgreSQL (TASK 03) và giao diện thư viện nhân vật (TASK 04): tạo / xem / sửa thông tin cơ bản / xóa OC, tìm kiếm, sắp xếp, yêu thích, thẻ, bộ sưu tập, ảnh đại diện và ảnh tham khảo. Chưa có trình biên tập dữ kiện đầy đủ, AI hay xuất PDF.
+> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02–03), lưu trữ PostgreSQL (TASK 03) , giao diện thư viện nhân vật (TASK 04): tạo / xem / sửa thông tin cơ bản / xóa OC, tìm kiếm, sắp xếp, yêu thích, thẻ, bộ sưu tập, ảnh đại diện và ảnh tham khảo; và trình biên tập dữ kiện (TASK 05): mọi nhóm dữ kiện, chế độ Cơ bản / Nâng cao, bốn trạng thái dữ kiện, tự động lưu có xử lý xung đột, trường tùy chỉnh riêng và dùng chung, quan hệ nhân vật, đánh dấu nhạy cảm theo phần tử, xem lại dữ liệu cũ và ngôn ngữ nguồn. Chưa có AI, hồ sơ văn bản hay xuất PDF.
 
 ## Yêu cầu môi trường
 
@@ -70,6 +70,10 @@ pnpm dev           # http://localhost:3000
 pnpm build && pnpm start   # bản production
 ```
 
+### Trình biên tập dữ kiện
+
+Mở một nhân vật → **Mở trình biên tập** (`/characters/<id>/edit`). Form được sinh từ định nghĩa trường của domain (không có component riêng cho từng trường). Thay đổi được tự động lưu sau khoảng 1 giây ngừng gõ, chỉ khi toàn bộ dữ kiện hợp lệ; trạng thái lưu hiển thị ở đầu trang. Nếu nhân vật vừa được sửa ở tab khác, tự động lưu dừng lại và bạn chọn “Giữ thay đổi của tôi” (gộp lên bản mới nhất, hỏi lại nếu cùng một mục bị sửa ở cả hai nơi) hoặc “Tải bản mới nhất”. Hồ sơ lưu bằng định dạng cũ có mục cần xem lại sẽ chỉ được lưu sau khi bạn xác nhận phần xem lại. Trường dùng chung cho nhiều nhân vật được quản lý ở `/fields`.
+
 ### Ảnh tải lên
 
 Ảnh được lưu trên đĩa ở `MEDIA_STORAGE_DIR` (mặc định `<thư mục dự án>/storage`, ngoài `public/` và đã nằm trong `.gitignore`). Database chỉ lưu metadata và storage key; ảnh được phục vụ qua `GET /media/<id>` (tra cứu theo id trong database, không bao giờ theo đường dẫn do client gửi). Chấp nhận PNG, JPEG, WebP, GIF tối đa 8 MB — loại tệp được xác định bằng chữ ký tệp, không tin phần mở rộng hay MIME do trình duyệt gửi. Hãy sao lưu thư mục này cùng với database.
@@ -82,12 +86,12 @@ pnpm lint          # ESLint
 pnpm format:check  # Prettier (pnpm format để tự sửa)
 pnpm test          # Vitest (unit) — không cần PostgreSQL
 pnpm test:integration  # Vitest với PostgreSQL thật, trên database riêng *_test
-pnpm test:e2e      # Playwright — tự khởi động server riêng trên cổng 3210
+pnpm test:e2e      # Playwright — tự build (thư mục .next-e2e) và chạy server riêng trên cổng 3210
 ```
 
 Integration tests dùng `TEST_DATABASE_URL` (đặt trong `.env.test.local`) hoặc tự suy ra từ `DATABASE_URL` bằng cách thêm hậu tố `_test` vào tên database (`oc_studio` → `oc_studio_test`). Database test được tạo tự động nếu chưa có; helper từ chối chạy trên database không kết thúc bằng `_test`.
 
-E2E chạy trên database riêng `<tên>_e2e_test` (tạo, migrate và làm trống tự động) và thư mục ảnh `storage/e2e-test`, với server riêng ở cổng 3210 — không bao giờ dùng lại dev server đang chạy, nên không thể ghi vào dữ liệu thật. Lần đầu cần cài trình duyệt: `pnpm exec playwright install chromium` (hoặc dùng Chrome đã cài: `PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e`).
+E2E chạy trên database riêng `<tên>_e2e_test` (tạo, migrate và làm trống tự động) và thư mục ảnh `storage/e2e-test`, với bản build production riêng (`.next-e2e`, không đụng `.next` của bạn) chạy ở cổng 3210 — không bao giờ dùng lại dev server đang chạy, nên không thể ghi vào dữ liệu thật. Lần đầu cần cài trình duyệt: `pnpm exec playwright install chromium` (hoặc dùng Chrome đã cài: `PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e`).
 
 ## Cấu trúc dự án
 
@@ -96,7 +100,8 @@ src/
 ├── app/                      # Routes (App Router) — chỉ ghép UI, không chứa business logic
 │   ├── (dashboard)/          # Các trang trong application shell (sidebar + topbar)
 │   │   ├── page.tsx          #   /            Tổng quan
-│   │   ├── characters/       #   /characters, /characters/[id]  Thư viện và hồ sơ nhân vật
+│   │   ├── characters/       #   /characters, /characters/[id], /characters/[id]/edit  Thư viện, hồ sơ, trình biên tập
+│   │   ├── fields/           #   /fields      Trường dùng chung (định nghĩa cấp thư viện)
 │   │   ├── collections/      #   /collections, /collections/[id] Bộ sưu tập
 │   │   ├── templates/        #   /templates   Mẫu hồ sơ
 │   │   └── settings/         #   /settings    Cài đặt
@@ -116,6 +121,10 @@ src/
 │   │   │                     #   traceability, AI fact filtering, presentation rules) — chỉ phụ thuộc zod
 │   │   ├── server/           #   Repositories + truy vấn thư viện (server-only)
 │   │   ├── actions.ts        #   Server Actions: tạo, sửa thông tin cơ bản, yêu thích, xóa
+│   │   ├── editor/           #   Mô hình trình biên tập (thuần TS): draft ⇄ fact, bố cục nhóm, lỗi, gộp xung đột,
+│   │   │                     #   xem lại migration, trường tùy chỉnh, reducer trạng thái
+│   │   ├── editor-actions.ts #   Server Actions: tự động lưu, tải bản mới nhất
+│   │   ├── library-field-actions.ts # Server Actions: trường dùng chung
 │   │   ├── basic-info.ts     #   Form thông tin cơ bản ⇄ facts (dùng chung client/server)
 │   │   └── components/       #   Thẻ nhân vật, danh sách, toolbar, hộp thoại
 │   ├── library/              #   Thẻ, bộ sưu tập: repositories, Server Actions, components

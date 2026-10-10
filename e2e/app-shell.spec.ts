@@ -4,6 +4,7 @@ const routes = [
   { path: "/", heading: "OC Studio" },
   { path: "/characters", heading: "Thư viện nhân vật" },
   { path: "/collections", heading: "Bộ sưu tập" },
+  { path: "/fields", heading: "Trường dùng chung" },
   { path: "/templates", heading: "Mẫu hồ sơ" },
   { path: "/settings", heading: "Cài đặt" },
 ];
@@ -45,14 +46,12 @@ test("navigation works from the sidebar", async ({ page, isMobile }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Thư viện nhân vật" })).toBeVisible();
 });
 
-test("library controls are live; unimplemented features stay visibly disabled", async ({
-  page,
-}) => {
+test("library controls are live and the Fact Editor opens from a character", async ({ page }) => {
   await page.goto("/characters");
   await expect(page.getByRole("button", { name: "Tạo nhân vật" }).first()).toBeEnabled();
   await expect(page.getByRole("searchbox", { name: "Tìm kiếm nhân vật" })).toBeEnabled();
 
-  // A character page offers the future Fact Editor only as a disabled, labelled control.
+  // A character page links to its Fact Editor.
   await expect(async () => {
     await page.getByRole("button", { name: "Tạo nhân vật" }).first().click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 2_000 });
@@ -60,5 +59,7 @@ test("library controls are live; unimplemented features stay visibly disabled", 
   await page.getByRole("dialog").getByLabel("Tên hiển thị").fill(`Vỏ ${Date.now()}`);
   await page.getByRole("dialog").getByRole("button", { name: "Tạo", exact: true }).click();
   await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole("button", { name: "Trình biên tập dữ kiện" })).toBeDisabled();
+  await page.getByRole("link", { name: "Mở trình biên tập" }).click();
+  await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}\/edit$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
