@@ -19,7 +19,7 @@ Personal web app for creating and editing fictional character profiles (OCs) for
 ## Scope rules (important)
 
 - Work task by task. Do not implement features belonging to a later task.
-- **Do not invent the domain model.** No character/profile/collection/template tables or types until the user provides the model.
+- **The character domain model is defined and user-approved** (`docs/`, decisions Q1–Q12). Change it only through a task that asks for it, and keep the docs in sync. Do not invent models for areas not yet specified (collections, templates storage, AI generations).
 - Do not add authentication, AI integration, or PDF export unless the task asks for it.
 - Do not use mock data as if it were real data. Unimplemented controls must be visibly disabled (see `UnavailableAction`) or navigate somewhere meaningful — never a button that does nothing.
 - Never drop, reset, or modify the user's existing database. Never guess DB credentials.
@@ -58,13 +58,17 @@ Next.js 16 (App Router, `cacheComponents`, `partialPrefetching`, `typedRoutes`, 
 
 ## Character Fact domain
 
-Spec: `docs/character-fact-schema.md`; rationale and open questions: `docs/character-domain-decisions.md`. Code: `src/features/characters/domain/` (imports only `zod` — enforced by a test).
+Spec: `docs/character-fact-schema.md`; decisions Q1–Q12 and open questions: `docs/character-domain-decisions.md`. Code: `src/features/characters/domain/` (imports only `zod` — enforced by a test). Current `schemaVersion`: **2**.
 
 - `CharacterFacts` is the single source of truth. AI-edited content must never write back to it.
-- `values` is a flat map `fieldKey → { state: "specified", value } | { state: "not_applicable" }`; **unspecified = key absent** (never stored explicitly).
-- Field keys, option codes, units and item ids are permanent technical ids — never derived from labels, never renamed or reused. Labels live in `labels.vi.ts`.
+- `values` is a flat map `fieldKey → { state: "specified", value } | { state: "explicit_none" } | { state: "not_applicable" }`; **unspecified = key absent** (never stored). "None" is a state, never an empty list/string.
+- Field keys, option codes, units and item ids are permanent technical ids — never derived from labels, never renamed or reused. Replace a field by marking it `deprecated` and adding a new key. Labels live in `labels.vi.ts`.
+- Key prefixes encode scope: built-in `group.name`, character-scoped `custom.<id>` / `cg_<id>`, library-scoped `lib.<id>` / `lg_<id>`. Library definitions are passed in via `DefinitionContext` — never a global registry. Edits to a definition in use must pass `findBreakingChanges`.
 - Every repeated element (list item, event, relationship…) has a stable `id`.
-- Convert form input with `normalizeFactInput`, then validate with `characterFactsSchema`. Schemas never transform data.
+- Convert form input with `normalizeFactInput`, then validate with `parseCharacterFacts(input, context)`. Schemas never transform data. Stored v1 data goes through `migrateCharacterFacts` (never guess meaning).
+- Anything sent to AI must go through `selectFactsForAi` (sensitive facts excluded unless allowed for that request).
+- Presentation (basic/advanced, templates) never changes facts — see `presentation.ts`.
+- Limits live in `constants.ts` (`LIMITS`); no magic numbers.
 - Nesting limit: group → sub-group → field → leaf sub-field.
 - Adding a built-in field: add it to `definitions.ts`, `labels.vi.ts` and the table in `docs/character-fact-schema.md` (tests check all three).
 - Sample characters in `__tests__/fixtures/` are illustrative only — never seed them as real data.

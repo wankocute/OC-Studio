@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { getFactState, normalizeFactInput, parseCharacterFacts } from "../domain";
+import {
+  CHARACTER_FACTS_SCHEMA_VERSION,
+  getFactState,
+  normalizeFactInput,
+  normalizeLanguageInput,
+  parseCharacterFacts,
+} from "../domain";
 
-import { sampleFantasy } from "./fixtures/sample-characters";
+import { sampleContemporary, sampleFantasy } from "./fixtures/sample-characters";
 
 describe("normalizeFactInput — UI input → fact state", () => {
   it("maps the not-applicable toggle to not_applicable regardless of value", () => {
@@ -56,11 +62,13 @@ describe("normalizeFactInput — UI input → fact state", () => {
     const fact = normalizeFactInput({ value: { value: Number.NaN, unit: "cm" } });
     expect(fact?.state).toBe("specified");
     const result = parseCharacterFacts({
-      schemaVersion: 1,
+      schemaVersion: CHARACTER_FACTS_SCHEMA_VERSION,
       displayName: "A",
       values: { "appearance.height": fact },
     });
-    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join("."))).toEqual([
+      "values.appearance.height.value.value",
+    ]);
   });
 });
 
@@ -69,5 +77,47 @@ describe("getFactState", () => {
     expect(getFactState(sampleFantasy, "identity.species")).toBe("specified");
     expect(getFactState(sampleFantasy, "identity.nationality")).toBe("not_applicable");
     expect(getFactState(sampleFantasy, "appearance.weight")).toBe("unspecified");
+  });
+});
+
+describe("explicit_none input (Q3)", () => {
+  it("maps the 'confirmed none' toggle to explicit_none regardless of value", () => {
+    expect(normalizeFactInput({ explicitNone: true })).toEqual({ state: "explicit_none" });
+    expect(normalizeFactInput({ explicitNone: true, value: [{ id: "t1", text: "Rồng" }] })).toEqual(
+      {
+        state: "explicit_none",
+      },
+    );
+  });
+
+  it("never derives explicit_none from an empty value", () => {
+    expect(normalizeFactInput({ value: [] })).toBeUndefined();
+    expect(normalizeFactInput({ value: "" })).toBeUndefined();
+  });
+
+  it("rejects both toggles at once as a programming error", () => {
+    expect(() => normalizeFactInput({ explicitNone: true, notApplicable: true })).toThrow(
+      TypeError,
+    );
+  });
+
+  it("reports the four states", () => {
+    expect(getFactState(sampleContemporary, "appearance.scars")).toBe("explicit_none");
+    expect(getFactState(sampleContemporary, "appearance.tattoos")).toBe("specified");
+    expect(getFactState(sampleFantasy, "appearance.piercings")).toBe("not_applicable");
+    expect(getFactState(sampleContemporary, "appearance.piercings")).toBe("unspecified");
+  });
+});
+
+describe("normalizeLanguageInput (Q9)", () => {
+  it("canonicalises tags and treats blank as unknown", () => {
+    expect(normalizeLanguageInput(" en-us ")).toBe("en-US");
+    expect(normalizeLanguageInput("VI")).toBe("vi");
+    expect(normalizeLanguageInput("")).toBeUndefined();
+    expect(normalizeLanguageInput(undefined)).toBeUndefined();
+  });
+
+  it("keeps malformed input so validation can report it", () => {
+    expect(normalizeLanguageInput("Tiếng Việt")).toBe("Tiếng Việt");
   });
 });

@@ -5,6 +5,7 @@
  * Zod schemas in `schemas.ts` validate exactly these shapes (checked at compile time there).
  * Design rationale: docs/character-domain-decisions.md.
  */
+import type { CHARACTER_FACTS_SCHEMA_VERSION } from "./constants";
 
 // ---------------------------------------------------------------------------
 // Field definitions (the "shape" of a fact sheet)
@@ -28,6 +29,12 @@ export type LeafKind =
 export type CompositeKind = "object" | "object_list";
 
 export type FieldKind = LeafKind | CompositeKind;
+
+/**
+ * Whether a fact may be shared with AI by default. `sensitive` facts are excluded unless the
+ * caller grants permission for that request (see `sensitivity.ts`). Absent = `standard`.
+ */
+export type Sensitivity = "standard" | "sensitive";
 
 /** `label` is only used by custom definitions; built-in labels live in a locale dictionary. */
 export type SelectOption = { readonly code: string; readonly label?: string };
@@ -71,6 +78,8 @@ export type SubfieldDefinition = LeafConfig & {
   readonly key: string;
   readonly label?: string;
   readonly required?: boolean;
+  /** A sensitive sub-field is stripped from every item unless the field is allowed. */
+  readonly sensitivity?: Sensitivity;
 };
 
 export type FieldConfig =
@@ -82,6 +91,16 @@ export type FieldConfig =
       readonly maxItems?: number;
     };
 
+/** Metadata shared by every field definition, independent of its kind. */
+export type FieldMeta = {
+  readonly sensitivity?: Sensitivity;
+  /**
+   * Allow `explicit_none` on a single-valued field (e.g. "has no family name").
+   * Collection kinds always allow it; see `allowsExplicitNone`.
+   */
+  readonly allowExplicitNone?: boolean;
+};
+
 export type BuiltinGroupDefinition = {
   /** Stable id, e.g. `appearance` or `appearance.hair`. */
   readonly id: string;
@@ -89,28 +108,46 @@ export type BuiltinGroupDefinition = {
   readonly parent?: string;
 };
 
-export type BuiltinFieldDefinition = FieldConfig & {
-  /** Stable technical key, never derived from a display label. */
-  readonly key: string;
-  /** Most specific group (top-level group or sub-group) the field is shown in. */
-  readonly group: string;
-};
+export type BuiltinFieldDefinition = FieldConfig &
+  FieldMeta & {
+    /** Stable technical key, never derived from a display label. */
+    readonly key: string;
+    /** Default group (top-level group or sub-group) the field is shown in. */
+    readonly group: string;
+    /**
+     * Retired field: existing values stay valid and are preserved, but editors must not offer
+     * it for new input. Its key is never reused.
+     */
+    readonly deprecated?: boolean;
+  };
 
+/** User-defined group. Character scope: `cg_<id>`; library scope: `lg_<id>`. */
 export type CustomGroupDefinition = {
-  /** `cg_<id>` — generated once, never changes. */
+  /** Generated once, never changes. */
   readonly id: string;
   /** User-entered label; user content, never translated. */
   readonly label: string;
-  /** Top-level group (built-in or custom) when this is a sub-group. */
+  /** Top-level group when this is a sub-group. */
   readonly parent?: string;
 };
 
-export type CustomFieldDefinition = FieldConfig & {
-  /** `custom.<id>` — generated once, never changes (renaming only changes `label`). */
-  readonly key: string;
-  readonly group: string;
-  readonly label: string;
-  readonly description?: string;
+/** Character-scoped field: `custom.<id>`, stored inside one character's fact sheet. */
+export type CustomFieldDefinition = FieldConfig &
+  FieldMeta & {
+    /** Generated once, never changes (renaming only changes `label`). */
+    readonly key: string;
+    readonly group: string;
+    readonly label: string;
+    readonly description?: string;
+  };
+
+/** Library-scoped field: `lib.<id>`, defined once and reusable by many characters. */
+export type LibraryFieldDefinition = CustomFieldDefinition & {
+  /**
+   * Incremented on every saved edit. Only compatible edits are allowed on an existing key
+   * (`findBreakingChanges`); incompatible ones require a new definition with a new key.
+   */
+  readonly version: number;
 };
 
 export type CustomDefinitions = {
@@ -120,7 +157,21 @@ export type CustomDefinitions = {
   readonly fields: readonly CustomFieldDefinition[];
 };
 
-export type FieldDefinition = BuiltinFieldDefinition | CustomFieldDefinition;
+/** Library-scoped definitions resolved by the caller (e.g. loaded from storage) for validation. */
+export type LibraryDefinitions = {
+  readonly groups: readonly CustomGroupDefinition[];
+  readonly fields: readonly LibraryFieldDefinition[];
+};
+
+export type FieldDefinition =
+  BuiltinFieldDefinition | CustomFieldDefinition | LibraryFieldDefinition;
+
+export type FieldScope = "builtin" | "character" | "library";
+
+/** External context needed to validate / interpret a fact sheet. Passed explicitly, never global. */
+export type DefinitionContext = {
+  readonly library?: LibraryDefinitions;
+};
 
 // ---------------------------------------------------------------------------
 // Values
@@ -156,9 +207,22 @@ export type Choice = { option: string } | { other: string };
 
 export type TextItem = { id: ItemId; text: string };
 
-/** Either an OC in the library, or a character described only by text. */
+/** Why an unlinked reference used to point at a library character. */
+export type DetachedFrom = {
+  /** Id of the library character the reference pointed at. Kept for audit only — never relinked. */
+  characterId: string;
+  reason: "character_deleted";
+  /** ISO 8601 timestamp of the detach. */
+  at: string;
+};
+
+/**
+ * Either an OC in the library, or a character described only by text.
+ * An `unlinked` ref with `detachedFrom` used to be linked to an OC that was deleted.
+ */
 export type CharacterRef =
-  { type: "character"; characterId: string } | { type: "unlinked"; name: string; note?: string };
+  | { type: "character"; characterId: string }
+  | { type: "unlinked"; name: string; note?: string; detachedFrom?: DetachedFrom };
 
 export type CharacterRefItem = { id: ItemId; ref: CharacterRef };
 
@@ -199,20 +263,31 @@ export type ValueOfKind = {
 
 export type FactData = ValueOfKind[FieldKind];
 
-/** All three states a fact can be in. `unspecified` is never stored: it is the absence of a key. */
-export type FactState = "specified" | "unspecified" | "not_applicable";
+/**
+ * The four states of a fact. `unspecified` is never stored: it is the absence of a key.
+ * - `explicit_none`: the user confirmed the character has none (no tattoos, no family name).
+ * - `not_applicable`: the concept does not apply to this character (no hair colour for a slime).
+ */
+export type FactState = "specified" | "unspecified" | "explicit_none" | "not_applicable";
 
 /** A stored fact. */
-export type FactValue = { state: "specified"; value: FactData } | { state: "not_applicable" };
-
-export const CHARACTER_FACTS_SCHEMA_VERSION = 1;
+export type FactValue =
+  | { state: "specified"; value: FactData }
+  | { state: "explicit_none" }
+  | { state: "not_applicable" };
 
 /** The Character Fact sheet — the single source of truth for a character. */
 export type CharacterFacts = {
   schemaVersion: typeof CHARACTER_FACTS_SCHEMA_VERSION;
-  /** The only required fact: the name shown in the library. */
+  /** The only required fact: the name shown in the library. Independent of identity names. */
   displayName: string;
+  /**
+   * Default language of the user-entered text, as a canonical BCP 47 tag (`vi`, `en-US`).
+   * Absent = unknown. Individual values may still be in other languages.
+   */
+  sourceLanguage?: string;
   /** Field key → fact. Keys absent here are `unspecified`. */
   values: Record<string, FactValue>;
+  /** Character-scoped definitions. Library-scoped ones are resolved via `DefinitionContext`. */
   custom?: CustomDefinitions;
 };

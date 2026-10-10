@@ -10,13 +10,14 @@ import {
 import {
   SAMPLE_CHARACTER_IDS,
   sampleCharacters,
+  sampleContext,
   sampleContemporary,
   sampleFantasy,
   sampleMinimal,
 } from "./fixtures/sample-characters";
 
 function sheet(values: Record<string, unknown>, extra: Partial<CharacterFacts> = {}): unknown {
-  return { schemaVersion: 1, displayName: "Thử nghiệm", values, ...extra };
+  return { schemaVersion: 2, displayName: "Thử nghiệm", values, ...extra };
 }
 
 function specified(value: unknown) {
@@ -25,12 +26,12 @@ function specified(value: unknown) {
 
 /** Paths of all issues, joined with "." for easy assertions. */
 function issuePaths(input: unknown): string[] {
-  const result = parseCharacterFacts(input);
+  const result = parseCharacterFacts(input, sampleContext);
   return result.success ? [] : result.error.issues.map((issue) => issue.path.join("."));
 }
 
 function expectValid(input: unknown) {
-  const result = parseCharacterFacts(input);
+  const result = parseCharacterFacts(input, sampleContext);
   expect(result.success ? [] : result.error.issues).toEqual([]);
 }
 
@@ -69,12 +70,14 @@ describe("sample characters", () => {
 
 describe("display name", () => {
   it("is required and cannot be blank", () => {
-    expectInvalidAt({ schemaVersion: 1, values: {} }, "displayName");
+    expectInvalidAt({ schemaVersion: 2, values: {} }, "displayName");
     expectInvalidAt(sheet({}, { displayName: "   " }), "displayName");
   });
 
   it("rejects an unknown schema version", () => {
-    expectInvalidAt({ schemaVersion: 2, displayName: "A", values: {} }, "schemaVersion");
+    expectInvalidAt({ schemaVersion: 3, displayName: "A", values: {} }, "schemaVersion");
+    // v1 sheets are not silently accepted: they must go through migrateCharacterFacts.
+    expectInvalidAt({ schemaVersion: 1, displayName: "A", values: {} }, "schemaVersion");
   });
 });
 
@@ -424,11 +427,18 @@ describe("custom facts", () => {
     );
   });
 
-  it("supports every custom kind", () => {
+  it("accepts the custom kinds used by the fantasy sample", () => {
     expectValid(sampleFantasy);
     const kinds = new Set(sampleFantasy.custom?.fields.map((field) => field.kind));
     expect(kinds).toEqual(
-      new Set(["single_select", "number", "object_list", "character_ref", "long_text"]),
+      new Set([
+        "single_select",
+        "number",
+        "object_list",
+        "character_ref",
+        "long_text",
+        "short_text",
+      ]),
     );
   });
 });
@@ -444,7 +454,7 @@ describe("unicode and Vietnamese text", () => {
       },
       { displayName: "Đặng Thị Ánh Nguyệt" },
     );
-    const result = parseCharacterFacts(input);
+    const result = parseCharacterFacts(input, sampleContext);
     expect(result.success).toBe(true);
     // Not normalised by the schema: what the user typed is what is stored.
     expect((result.data?.values["identity.full_name"] as { value: string }).value).toBe(decomposed);
@@ -465,7 +475,7 @@ describe("parsing is non-destructive", () => {
     (_, character) => {
       const snapshot = structuredClone(character);
       const frozen = deepFreeze(structuredClone(character));
-      const result = parseCharacterFacts(frozen);
+      const result = parseCharacterFacts(frozen, sampleContext);
       expect(result.success).toBe(true);
       expect(result.data).toEqual(snapshot);
       expect(frozen).toEqual(snapshot);

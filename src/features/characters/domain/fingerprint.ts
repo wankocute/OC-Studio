@@ -1,26 +1,28 @@
 /**
- * Fact references and content fingerprints — the basis for traceability and staleness.
+ * Fact references and content fingerprints — the basis for traceability and staleness (Q10).
  *
  * A *fact ref* is a stable address:
  * - `displayName`
  * - `<fieldKey>`                    e.g. `identity.age`
  * - `<fieldKey>[<itemId>]`          e.g. `appearance.tattoos[t_1]` (repeated elements)
+ * Tracing stops at item level; sub-fields are not addressed separately.
  *
- * A *fingerprint* is a hash of the canonical JSON of the fact at that address.
- * Generated content (later tasks) stores `{ ref → fingerprint }` for the facts it used;
- * comparing with current fingerprints tells which facts changed or were removed.
+ * A *fingerprint* is `<algorithm>:<hash>` of the canonical JSON of the fact at that address.
+ * For character- and library-scoped fields the hash also covers the definition's meaning
+ * (label, description, kind, options…), because users read custom labels as part of the fact.
+ * Built-in labels are translations, so they are not included.
  *
- * Item fingerprints exclude position, so reordering a list changes only the field-level
- * fingerprint (whose value includes order), not the items'.
- *
- * Not a security hash: it only needs to detect edits. Values carry an algorithm prefix so the
- * function can be swapped later without misreading old fingerprints.
+ * Fingerprints are for change detection only — not a security hash. Fingerprints made by a
+ * different algorithm are never compared as if equal or different: they are "incomparable".
  */
-import { findFieldDefinition } from "./schemas";
-import type { CharacterFacts, FactValue } from "./types";
+import { createFieldResolver, fieldScopeOf } from "./custom-definitions";
+import type { CharacterFacts, DefinitionContext, FactValue, FieldDefinition } from "./types";
 
 export type FactRef = string;
 export type FactFingerprints = Record<FactRef, string>;
+
+/** Current algorithm id: cyrb53 over canonical JSON (sorted keys, NFC strings). */
+export const FINGERPRINT_ALGORITHM = "c53";
 
 export const DISPLAY_NAME_REF = "displayName";
 
@@ -30,6 +32,12 @@ export function fieldRef(fieldKey: string): FactRef {
 
 export function itemRef(fieldKey: string, itemId: string): FactRef {
   return `${fieldKey}[${itemId}]`;
+}
+
+/** Field key of a ref (`appearance.tattoos[t_1]` → `appearance.tattoos`). */
+export function fieldKeyOfRef(ref: FactRef): string {
+  const bracket = ref.indexOf("[");
+  return bracket === -1 ? ref : ref.slice(0, bracket);
 }
 
 /** Deterministic JSON: object keys sorted, strings NFC-normalised, `undefined` dropped. */
@@ -61,7 +69,29 @@ function cyrb53(text: string): string {
 }
 
 export function fingerprint(value: unknown): string {
-  return `c53:${cyrb53(canonicalJson(value))}`;
+  return `${FINGERPRINT_ALGORITHM}:${cyrb53(canonicalJson(value))}`;
+}
+
+/** Algorithm id of a fingerprint (`c53:…` → `c53`). */
+export function fingerprintAlgorithm(value: string): string {
+  const colon = value.indexOf(":");
+  return colon === -1 ? "" : value.slice(0, colon);
+}
+
+/** Definition properties that do not change what a value means (placement, policy, bookkeeping). */
+const NON_SEMANTIC_KEYS = new Set(["group", "version", "sensitivity"]);
+
+function withoutNonSemanticKeys(definition: object): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(definition).filter(([key]) => !NON_SEMANTIC_KEYS.has(key)),
+  );
+}
+
+/** The parts of a custom/library definition that change what a value means. */
+function definitionSemantics(definition: FieldDefinition): unknown {
+  const semantic = withoutNonSemanticKeys(definition);
+  if ("fields" in definition) semantic.fields = definition.fields.map(withoutNonSemanticKeys);
+  return semantic;
 }
 
 const REPEATED_KINDS = new Set(["text_list", "character_ref_list", "object_list"]);
@@ -73,19 +103,29 @@ function itemsOf(fact: FactValue): readonly { id: string }[] {
 }
 
 /**
- * Fingerprint every addressable fact of a sheet. Unspecified facts have no entry.
- * Assumes the sheet passed validation (item ids are unique).
+ * Fingerprint every addressable fact of a sheet. Unspecified facts have no entry, so a fact that
+ * later gets a value shows up as `added`. Assumes the sheet passed validation (unique item ids).
+ * Pass the same `context` (library definitions) used for validation.
  */
-export function computeFactFingerprints(facts: CharacterFacts): FactFingerprints {
+export function computeFactFingerprints(
+  facts: CharacterFacts,
+  context: DefinitionContext = {},
+): FactFingerprints {
   const result: FactFingerprints = { [DISPLAY_NAME_REF]: fingerprint(facts.displayName) };
+  const resolve = createFieldResolver(facts.custom, context);
 
   for (const [key, fact] of Object.entries(facts.values)) {
-    result[fieldRef(key)] = fingerprint(fact);
+    const definition = resolve(key);
+    const semantic =
+      definition && fieldScopeOf(key) !== "builtin" ? definitionSemantics(definition) : undefined;
+    const withDefinition = (content: unknown) =>
+      semantic === undefined ? content : { content, definition: semantic };
 
-    const definition = findFieldDefinition(key, facts.custom);
+    result[fieldRef(key)] = fingerprint(withDefinition(fact));
+
     if (!definition || !REPEATED_KINDS.has(definition.kind)) continue;
     for (const item of itemsOf(fact)) {
-      result[itemRef(key, item.id)] = fingerprint(item);
+      result[itemRef(key, item.id)] = fingerprint(withDefinition(item));
     }
   }
   return result;
@@ -109,11 +149,75 @@ export function diffFactFingerprints(
 }
 
 /**
- * Facts a piece of generated content relied on that have since changed or disappeared.
- * Non-empty result ⇒ the content may be outdated.
+ * Facts a piece of generated content relied on that changed or disappeared since.
+ * Fingerprints from another algorithm cannot be compared, so they are reported too
+ * (conservative: re-check rather than assume unchanged). Non-empty ⇒ possibly outdated.
  */
 export function findStaleRefs(used: FactFingerprints, current: FactFingerprints): FactRef[] {
   return Object.entries(used)
-    .filter(([ref, hash]) => current[ref] !== hash)
+    .filter(([ref, hash]) => {
+      const now = current[ref];
+      return (
+        now === undefined ||
+        fingerprintAlgorithm(hash) !== fingerprintAlgorithm(now) ||
+        now !== hash
+      );
+    })
     .map(([ref]) => ref);
+}
+
+// ---------------------------------------------------------------------------
+// Snapshots: what a piece of generated content was given
+// ---------------------------------------------------------------------------
+
+/**
+ * Record of the facts handed to a generator: the scope (field keys, plus `displayName` if used)
+ * and the fingerprints of every fact in that scope at that time.
+ */
+export type FactSnapshot = {
+  algorithm: string;
+  /** Field-level refs the content was allowed to use, e.g. `["displayName", "appearance.height"]`. */
+  scope: FactRef[];
+  fingerprints: FactFingerprints;
+};
+
+function inScope(ref: FactRef, scope: ReadonlySet<string>): boolean {
+  return scope.has(fieldKeyOfRef(ref));
+}
+
+export function createFactSnapshot(
+  current: FactFingerprints,
+  scope: readonly FactRef[],
+): FactSnapshot {
+  const scopeSet = new Set(scope);
+  const fingerprints = Object.fromEntries(
+    Object.entries(current).filter(([ref]) => inScope(ref, scopeSet)),
+  );
+  return { algorithm: FINGERPRINT_ALGORITHM, scope: [...scope], fingerprints };
+}
+
+export type SnapshotAssessment =
+  | { status: "fresh" }
+  | { status: "outdated"; changed: FactRef[]; removed: FactRef[]; added: FactRef[] }
+  /** Snapshot made with another fingerprint algorithm: recompute, do not compare. */
+  | { status: "incomparable"; snapshotAlgorithm: string };
+
+/**
+ * Compare a snapshot with the current fingerprints. Besides changed/removed facts, facts that
+ * entered the snapshot's scope later (`added`) also make the content outdated — e.g. the user
+ * filled in eye colour after an appearance paragraph was written.
+ */
+export function assessFactSnapshot(
+  snapshot: FactSnapshot,
+  current: FactFingerprints,
+): SnapshotAssessment {
+  if (snapshot.algorithm !== FINGERPRINT_ALGORITHM) {
+    return { status: "incomparable", snapshotAlgorithm: snapshot.algorithm };
+  }
+  const scope = new Set(snapshot.scope);
+  const now = Object.fromEntries(Object.entries(current).filter(([ref]) => inScope(ref, scope)));
+  const { added, changed, removed } = diffFactFingerprints(snapshot.fingerprints, now);
+  return added.length + changed.length + removed.length === 0
+    ? { status: "fresh" }
+    : { status: "outdated", changed, removed, added };
 }

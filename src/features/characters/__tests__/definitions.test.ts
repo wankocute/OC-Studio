@@ -11,6 +11,7 @@ import {
   factLabelsVi,
   fieldKeySchema,
   getBuiltinGroup,
+  NAMESPACES,
   subfieldDefinitionSchema,
 } from "../domain";
 
@@ -39,6 +40,12 @@ function selectConfigs() {
 describe("built-in groups", () => {
   it("have unique ids and at most one level of sub-groups", () => {
     const ids = BUILTIN_GROUPS.map((group) => group.id);
+    for (const id of ids) {
+      expect(
+        id.startsWith(NAMESPACES.characterGroup) || id.startsWith(NAMESPACES.libraryGroup),
+        id,
+      ).toBe(false);
+    }
     expect(new Set(ids).size).toBe(ids.length);
     for (const group of BUILTIN_GROUPS) {
       if (!("parent" in group)) continue;
@@ -54,7 +61,8 @@ describe("built-in fields", () => {
     expect(new Set(keys).size).toBe(keys.length);
     for (const key of keys) {
       expect(fieldKeySchema.safeParse(key).success, key).toBe(true);
-      expect(key.startsWith("custom."), key).toBe(false);
+      expect(key.startsWith(NAMESPACES.characterField), key).toBe(false);
+      expect(key.startsWith(NAMESPACES.libraryField), key).toBe(false);
     }
   });
 

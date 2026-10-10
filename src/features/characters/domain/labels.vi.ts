@@ -14,10 +14,12 @@ export type FactLabels = {
   /** `<fieldKey or fieldKey.subKey>` → option code → label. */
   options: Record<string, Record<string, string>>;
   units: Record<string, string>;
-  states: { unspecified: string; not_applicable: string; other: string };
+  states: { unspecified: string; explicit_none: string; not_applicable: string; other: string };
+  sensitivity: { standard: string; sensitive: string };
+  modes: { basic: string; advanced: string };
 };
 
-const genderOptions = { female: "Nữ", male: "Nam", non_binary: "Phi nhị nguyên" };
+const legacyGenderOptions = { female: "Nữ", male: "Nam", non_binary: "Phi nhị nguyên" };
 const relationshipTypes = {
   family: "Gia đình",
   romantic_partner: "Người yêu / bạn đời",
@@ -65,7 +67,9 @@ export const factLabelsVi: FactLabels = {
     "identity.age": "Tuổi",
     "identity.apparent_age": "Tuổi trông như",
     "identity.birth_date": "Ngày sinh",
-    "identity.gender": "Giới tính",
+    "identity.gender": "Giới tính (dữ liệu cũ)",
+    "identity.gender_identity": "Bản dạng giới",
+    "identity.biological_sex": "Giới tính sinh học",
     "identity.pronouns": "Đại từ xưng hô",
     "identity.nationality": "Quốc tịch",
     "identity.species": "Chủng loài",
@@ -188,7 +192,14 @@ export const factLabelsVi: FactLabels = {
     "relationships.entries.notes": "Ghi chú",
   },
   options: {
-    "identity.gender": genderOptions,
+    "identity.gender": legacyGenderOptions,
+    "identity.gender_identity": {
+      woman: "Nữ",
+      man: "Nam",
+      non_binary: "Phi nhị nguyên",
+      agender: "Vô giới",
+    },
+    "identity.biological_sex": { female: "Nữ", male: "Nam", intersex: "Liên giới tính" },
     "behavior.speech_pace": {
       very_slow: "Rất chậm",
       slow: "Chậm",
@@ -226,7 +237,10 @@ export const factLabelsVi: FactLabels = {
   },
   states: {
     unspecified: "Chưa xác định",
+    explicit_none: "Xác nhận không có",
     not_applicable: "Không áp dụng",
     other: "Khác",
   },
+  sensitivity: { standard: "Thông thường", sensitive: "Nhạy cảm" },
+  modes: { basic: "Cơ bản", advanced: "Nâng cao" },
 };

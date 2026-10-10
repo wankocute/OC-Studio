@@ -1,174 +1,196 @@
 # Character Domain — Quyết định thiết kế
 
-> **Trạng thái:** Đề xuất của TASK 02, **chưa được người dùng duyệt**. Mọi quyết định dưới đây là
-> phương án được đề xuất và đã triển khai ở mức domain/validation để kiểm chứng; chúng có thể thay
-> đổi sau khi trả lời các câu hỏi ở [mục 7](#7-quyết-định-cần-người-dùng-xác-nhận).
->
-> Đặc tả trường: [character-fact-schema.md](./character-fact-schema.md). Mã: `src/features/characters/domain/`.
+> **Trạng thái:** 12 quyết định nghiệp vụ Q1–Q12 **đã được người dùng xác nhận** (TASK 02.1) và
+> được phản ánh trong `schemaVersion: 2`. Đặc tả: [character-fact-schema.md](./character-fact-schema.md).
+> Mã: `src/features/characters/domain/`.
 
-## 1. Biểu diễn dữ kiện
+## 1. Bảng quyết định Q1–Q12
 
-### Phương án đã cân nhắc
+| #   | Quyết định đã xác nhận                                                 | Trạng thái                                                     | Triển khai                                                                                                                                    |
+| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Trường tùy chỉnh có hai phạm vi: riêng nhân vật và dùng chung thư viện | **Implemented** (domain) · lưu trữ: _deferred_ TASK 03         | `custom.*`/`cg_*` vs `lib.*`/`lg_*`; `createFieldResolver`; `DefinitionContext`; `libraryDefinitionsSchema`; `version`; `findBreakingChanges` |
+| Q2  | `displayName` bắt buộc, độc lập                                        | **Implemented**                                                | Không đồng bộ với trường tên; UI gợi ý: _deferred_ (editor)                                                                                   |
+| Q3  | Thêm `explicit_none`                                                   | **Implemented**                                                | Types, schema, `normalizeFactInput`, fingerprint, migration, fixtures                                                                         |
+| Q4  | Chỉ gợi ý quan hệ ngược                                                | **Implemented** (contract) · UI: _deferred_                    | `suggestReverseRelationships`                                                                                                                 |
+| Q5  | Xóa OC ⇒ tham chiếu thành unlinked, giữ tên và dữ kiện                 | **Implemented** (domain) · thao tác xóa DB: _deferred_ TASK 03 | `detachedFrom`; `detachDeletedCharacter`; `collectLinkedReferences`                                                                           |
+| Q6  | Dữ kiện nhạy cảm mặc định không gửi AI                                 | **Implemented** (contract) · tích hợp AI: _deferred_           | `sensitivity`; `selectFactsForAi`                                                                                                             |
+| Q7  | Editor Cơ bản / Nâng cao                                               | **Implemented** (metadata) · editor: _deferred_                | `BASIC_FIELD_KEYS`; `getFieldVisibility`                                                                                                      |
+| Q8  | Tách bản dạng giới và giới tính sinh học                               | **Implemented**                                                | `identity.gender_identity`, `identity.biological_sex`; `identity.gender` deprecated                                                           |
+| Q9  | Ngôn ngữ nguồn ở cấp nhân vật                                          | **Implemented**                                                | `sourceLanguage?` (BCP 47 dạng chuẩn); `normalizeLanguageInput`                                                                               |
+| Q10 | Truy vết theo khóa trường + id phần tử                                 | **Implemented**                                                | Ngữ nghĩa định nghĩa trong fingerprint; snapshot có phạm vi; xử lý khác thuật toán                                                            |
+| Q11 | Giữ giới hạn, tập trung hằng số                                        | **Implemented**                                                | `LIMITS` trong `constants.ts`; thông báo nêu giới hạn                                                                                         |
+| Q12 | Mẫu hồ sơ chỉ đổi cách trình bày                                       | **Implemented** (contract) · hệ thống Templates: _deferred_    | `TemplatePresentation`; `createTemplatePresentationSchema`                                                                                    |
 
-|                        | A. Object lồng theo nhóm           | B. Mỗi trường là object metadata đầy đủ                                     | **C. Map phẳng `fieldKey → { state, value }`** (chọn)                             |
-| ---------------------- | ---------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Ví dụ                  | `{ identity: { age: 27 } }`        | `{ id, key, label, type, value, state, updatedAt, source… }` cho mọi trường | `{ "identity.age": { state: "specified", value: { value: 27, unit: "years" } } }` |
-| 3 trạng thái           | Phải dùng `null`/sentinel ⇒ dễ lẫn | Có                                                                          | Có, gọn                                                                           |
-| Đổi nhóm của trường    | Dữ liệu phải di chuyển             | Không                                                                       | Không                                                                             |
-| Trường tùy chỉnh       | Khó (lồng theo nhóm động)          | Dễ                                                                          | Dễ (cùng một map)                                                                 |
-| Kích thước / độ dễ đọc | Gọn nhất                           | Nặng, lặp metadata ở từng trường đơn giản                                   | Gọn, đọc được                                                                     |
-| Kiểu dữ liệu tĩnh      | Tốt nhất                           | Yếu                                                                         | Trung bình — kiểm tra lúc chạy theo định nghĩa                                    |
-| Truy vết               | Theo path (dễ vỡ)                  | Theo id                                                                     | Theo khóa trường + id phần tử                                                     |
-| JSONB                  | Tốt                                | Tốt nhưng phình                                                             | Tốt                                                                               |
+Không có quyết định nào ở trạng thái _Needs clarification_; các câu hỏi chi tiết mới phát sinh nằm ở [mục 8](#8-câu-hỏi-mở).
 
-**Quyết định:** C. Metadata (kiểu, nhóm, nhãn, ràng buộc) nằm trong **định nghĩa** trường, không lặp lại trong dữ liệu. Envelope `{ state, value }` chỉ có 2 khóa — đủ để phân biệt trạng thái mà không biến trường đơn giản thành cấu trúc nặng.
+## 2. Biểu diễn dữ kiện (giữ nguyên từ TASK 02)
 
-**Đánh đổi:** TypeScript không biết `values["identity.age"]` là `Measure` ở compile time (map mở do có trường tùy chỉnh); an toàn kiểu được bảo đảm bằng validation runtime theo định nghĩa. `ValueOfKind` cho phép thu hẹp kiểu khi đã biết `kind`.
+|                                   | A. Object lồng theo nhóm  | B. Mỗi trường là object metadata đầy đủ | **C. Map phẳng `fieldKey → { state, value? }`** (chọn) |
+| --------------------------------- | ------------------------- | --------------------------------------- | ------------------------------------------------------ |
+| Nhiều trạng thái                  | Phải dùng `null`/sentinel | Có                                      | Có, gọn                                                |
+| Đổi nhóm / template đổi cách nhóm | Dữ liệu phải di chuyển    | Không                                   | Không                                                  |
+| Trường tùy chỉnh                  | Khó                       | Dễ                                      | Dễ (cùng một map)                                      |
+| Kích thước                        | Gọn nhất                  | Nặng                                    | Gọn                                                    |
+| Kiểu tĩnh                         | Tốt nhất                  | Yếu                                     | Trung bình — kiểm tra lúc chạy theo định nghĩa         |
+| JSONB                             | Tốt                       | Phình                                   | Tốt                                                    |
 
-### Kiểu giá trị
+Metadata (kiểu, nhóm, nhãn, độ nhạy cảm, ràng buộc) nằm trong **định nghĩa**, không lặp lại trong dữ liệu. Danh sách luôn có `id` phần tử để truy vết; `multi_select` không cần vì mã lựa chọn đã là định danh. Không tự quy đổi đơn vị. Độ sâu tối đa: Nhóm → Nhóm con → Trường → Trường con (kiểu lá).
 
-- Giá trị đơn là JSON nguyên thủy (`string`, `number`, `boolean`) — không bọc thêm.
-- Giá trị có đơn vị dùng `measure` `{ value, unit, approximate? }`; **không tự quy đổi đơn vị** (quy đổi là suy luận/biến đổi dữ kiện).
-- Danh sách luôn là mảng phần tử có `id` (`text_list`, `character_ref_list`, `object_list`) — kể cả danh sách chuỗi đơn giản, vì cần định danh phần tử để truy vết.
-  - Đánh đổi: `["Kiên nhẫn"]` gọn hơn `[{ id, text: "Kiên nhẫn" }]` nhưng không phân biệt được "sửa mục 1" với "xóa mục 1 + thêm mục mới", và sắp xếp lại sẽ làm mọi mục bị coi là thay đổi.
-- `multi_select` **không** có id phần tử: mã lựa chọn tự nó đã là định danh ổn định.
-- Ngày: `calendar` (từng phần) hoặc `text` — vì lịch hư cấu và mốc tương đối ("hai năm trước khi…") không thể ép vào ngày Gregorian, nhưng ngày thật nên có cấu trúc để kiểm tra hợp lệ.
-- Lựa chọn: `{ option: code }` hoặc `{ other: text }` thay vì một chuỗi duy nhất, để không bao giờ nhầm mã với văn bản người dùng nhập.
+## 3. Trạng thái dữ kiện (Q3)
 
-### Giới hạn độ sâu
+| Phương án cho "xác nhận không có"           | Đánh giá                                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Dùng `not_applicable` (TASK 02)             | Lẫn hai ý: "không có" (sự thật về nhân vật) vs "không áp dụng" (khái niệm không phù hợp)                |
+| Danh sách rỗng / chuỗi rỗng                 | Mâu thuẫn quy tắc "specified phải có giá trị"; không áp dụng được cho trường đơn; dễ lẫn với ô bỏ trống |
+| **Trạng thái riêng `explicit_none`** (chọn) | Rõ nghĩa, không mang giá trị, dùng chung cơ chế envelope                                                |
 
-**Nhóm → Nhóm con → Trường → Trường con (kiểu lá).** Không có object trong object, không có danh sách object trong phần tử. Lý do: form editor chỉ cần hai dạng (trường đơn, danh sách thẻ), validation và đường dẫn lỗi đơn giản, đủ cho mọi trường mặc định. Nhu cầu sâu hơn được tách thành trường riêng (ví dụ sự kiện liên quan đến nhân vật dùng `character_ref_list` là kiểu lá).
+- Phạm vi: luôn được với trường danh sách; với trường đơn chỉ khi định nghĩa bật `allowExplicitNone` (họ, quốc tịch, học vấn, đào tạo, nghề nghiệp, nơi ở). Với phần lớn trường đơn ("không có chiều cao"), "không có" không phải câu trả lời hợp lý — cho phép sẽ khuyến khích dữ liệu mơ hồ.
+- `unspecified` vẫn là "vắng khóa", không lưu tường minh.
+- Dữ liệu v1 dùng `not_applicable` **không** bị tự chuyển — migration chỉ đánh dấu để người dùng xem lại.
 
-## 2. Trạng thái dữ kiện
+## 4. Traceability và Change Detection (Q10)
 
-| Phương án                                                                  | Vấn đề                                                                                                            |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `null` = chưa xác định, không có cách nói "không áp dụng"                  | Thiếu một trạng thái nghiệp vụ                                                                                    |
-| Lưu cả `{ state: "unspecified" }`                                          | Hai cách biểu diễn cho cùng một ý (vắng mặt và tường minh) ⇒ so sánh, fingerprint, truy vấn đều phải xử lý cả hai |
-| **Vắng mặt = unspecified; envelope cho specified / not_applicable** (chọn) | Một cách biểu diễn duy nhất cho mỗi trạng thái                                                                    |
+### Phương án đã cân nhắc (TASK 02)
 
-Chuyển đổi từ UI do `normalizeFactInput` làm (trim, NFC, bỏ phần tử rỗng, rỗng ⇒ unspecified). Schema chỉ **kiểm tra**, không biến đổi — đảm bảo "parse không làm thay đổi dữ liệu" và lỗi nhập liệu không bị nuốt mất.
+1. **Stable field path + revision** — path theo chỉ số mảng vỡ khi thêm/xóa/sắp xếp; revision toàn sheet quá nhạy; revision theo path cần bộ đếm cho từng path ở mọi đường ghi; sửa rồi hoàn tác vẫn bị coi là thay đổi.
+2. **Stable fact ID + hash** (**chọn, giữ nguyên**) — địa chỉ không đổi khi thêm/xóa/sắp xếp; hash tính lại được bất kỳ lúc nào, không cần trạng thái phụ; hoàn tác ⇒ fingerprint trở lại như cũ.
 
-Trường con trong phần tử không có `not_applicable` — đánh đổi để giữ dữ liệu gọn; nếu cần, có thể bổ sung sau mà không phá dữ liệu cũ.
+### Bổ sung ở TASK 02.1
 
-## 3. Định danh ổn định
+- **Ngữ nghĩa định nghĩa:** với trường `custom.*` / `lib.*`, fingerprint băm `{ content, definition }` trong đó `definition` là định nghĩa bỏ đi `group`, `version`, `sensitivity`. Lý do: nhãn trường tùy chỉnh là nội dung người dùng và AI đọc nó như một phần dữ kiện. Trường có sẵn không cần — nhãn chỉ là bản dịch, nghĩa cố định theo khóa.
+- **Snapshot có phạm vi:** `FactSnapshot = { algorithm, scope, fingerprints }`. `assessFactSnapshot` phát hiện cả dữ kiện **mới xuất hiện trong phạm vi** (`added`) — nội dung viết khi chưa có màu mắt cần cập nhật khi màu mắt được nhập.
+- **Khác thuật toán:** fingerprint có tiền tố (`c53:`). Snapshot khác thuật toán ⇒ `incomparable` (cần tính lại), không bao giờ coi là bằng/khác. `findStaleRefs` coi fingerprint khác thuật toán là lỗi thời (thận trọng).
+- Độ chi tiết dừng ở phần tử; tham chiếu nhân vật lồng trong phần tử được báo tại ref của phần tử.
 
-| Phương án cho trường có sẵn                                          | Đánh giá                                                    |
-| -------------------------------------------------------------------- | ----------------------------------------------------------- |
-| UUID cho mỗi trường                                                  | Ổn định nhưng khó đọc trong dữ liệu, log, prompt AI và test |
-| Nhãn tiếng Việt                                                      | Bị cấm: đổi nhãn/dịch làm mất liên kết                      |
-| **Khóa ASCII có ngữ nghĩa, bất biến** (`identity.birth_date`) (chọn) | Dễ đọc, ổn định; quy ước: không đổi tên, không tái sử dụng  |
+| Thao tác                                                             | Kết quả                                          |
+| -------------------------------------------------------------------- | ------------------------------------------------ |
+| Sửa trường đơn                                                       | Fingerprint trường đổi                           |
+| Sửa một phần tử                                                      | Fingerprint phần tử + trường cha đổi             |
+| Thêm / xóa phần tử                                                   | Ref `added` / `removed` + trường cha đổi         |
+| Sắp xếp lại                                                          | Chỉ trường cha đổi; identity phần tử giữ nguyên  |
+| Chuyển giữa specified / explicit_none / not_applicable / unspecified | Fingerprint trường đổi hoặc biến mất / xuất hiện |
+| Đổi nhãn/kiểu trường tùy chỉnh                                       | Fingerprint đổi                                  |
+| Đổi nhóm, độ nhạy cảm, tăng `version`                                | Không đổi                                        |
+| Sửa rồi hoàn tác                                                     | Trở lại như cũ                                   |
 
-- Tiền tố nhóm trong khóa chỉ để dễ đọc; khóa là chuỗi mờ (opaque). Nếu sau này chuyển trường sang nhóm khác, **giữ nguyên khóa**.
-- Trường tùy chỉnh: `custom.<id>` sinh một lần; đổi nhãn không đổi khóa ⇒ không mất dữ liệu.
-- Phần tử lặp lại: `id` sinh phía client khi tạo phần tử (khuyến nghị `crypto.randomUUID()`), giữ nguyên khi sửa nội dung hay sắp xếp lại. Chỉ cần duy nhất trong danh sách vì fact ref luôn kèm khóa trường.
+cyrb53 (53-bit) không phải hash bảo mật; đủ cho phát hiện thay đổi trong phạm vi một nhân vật.
 
-## 4. Traceability và Change Detection
+## 5. Trường tùy chỉnh hai phạm vi (Q1)
 
-### Phương án 1 — Stable field path + revision
+### Namespace và phân giải
 
-Địa chỉ dạng path (`appearance.tattoos[0].description`), mỗi lần lưu tăng `revision` (toàn sheet hoặc theo path).
+| Phương án                                                         | Đánh giá                                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Một namespace, tra cứu lần lượt (nhân vật → thư viện)             | Một khóa có thể khớp cả hai ⇒ mơ hồ, phụ thuộc thứ tự               |
+| Trường `scope` trong dữ liệu giá trị                              | Thêm metadata vào mọi giá trị                                       |
+| **Tiền tố khóa rời nhau** (chọn): `custom.`/`cg_` vs `lib.`/`lg_` | Phạm vi suy ra từ chính khóa; không thể xung đột; dữ liệu không đổi |
 
-- ➕ Đơn giản khi dữ liệu là cây cố định; revision tăng dần dễ hiểu.
-- ➖ Path theo **chỉ số mảng** vỡ khi thêm/xóa/sắp xếp: xóa phần tử 0 làm mọi phần tử sau "đổi địa chỉ".
-- ➖ Revision toàn sheet: mọi nội dung AI đều lỗi thời sau bất kỳ chỉnh sửa nào (quá nhạy).
-- ➖ Revision theo path: phải lưu và cập nhật bộ đếm cho từng path ở mọi đường ghi (dễ sai, cần bảng/cột riêng); sửa rồi hoàn tác vẫn bị coi là thay đổi.
+- Không có registry toàn cục: `createFieldResolver(custom, { library })`. Validation nhận định nghĩa thư viện qua tham số (`parseCharacterFacts(input, context)`).
+- Thiếu định nghĩa thư viện ⇒ **lỗi** (không bỏ qua): chấp nhận dữ liệu chưa kiểm được sẽ phá bảo đảm "fact sheet đã parse là hợp lệ".
+- Định nghĩa thư viện chỉ được đặt trong nhóm có sẵn hoặc nhóm thư viện; định nghĩa riêng có thể đặt trong nhóm thư viện (khi có context).
 
-### Phương án 2 — Stable fact ID + revision/hash
+### Sửa định nghĩa đang được dùng
 
-Địa chỉ bằng ID ổn định (khóa trường, `id` phần tử); phát hiện thay đổi bằng revision hoặc hash nội dung.
+| Phương án                                                                               | Đánh giá                                                                   |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Cho sửa tự do, dữ liệu cũ có thể mất hợp lệ                                             | Vi phạm yêu cầu                                                            |
+| Lưu phiên bản định nghĩa trong từng giá trị, validate theo phiên bản cũ                 | Phức tạp: phải giữ mọi phiên bản cũ; AI/editor phải hiểu nhiều phiên bản   |
+| **Chỉ cho phép thay đổi tương thích trên cùng khóa; thay đổi phá vỡ ⇒ khóa mới** (chọn) | Giá trị cũ luôn hợp lệ với định nghĩa mới; `version` chỉ là bộ đếm sửa đổi |
 
-- ➕ Địa chỉ không đổi khi thêm/xóa/sắp xếp.
-- ➕ Với **hash**: không cần lưu trạng thái — tính lại từ dữ liệu hiện tại bất kỳ lúc nào; sửa rồi hoàn tác ⇒ không lỗi thời; chạy giống nhau ở client và server.
-- ➖ Cần id cho phần tử lặp lại (đã có).
-- ➖ Hash không cho biết _thứ tự_ thay đổi (không cần cho mục tiêu "có lỗi thời không").
+`findBreakingChanges(prev, next)` là cổng kiểm tra cho kho lưu trữ (TASK 03). Nếu thay đổi phá vỡ vẫn lọt vào, validation báo lỗi — không xóa dữ liệu.
 
-### Quyết định: Phương án 2 — fact ref ổn định + fingerprint nội dung (không dùng revision cho truy vết)
+## 6. Các quyết định khác
 
-- Fact ref: `displayName`, `<fieldKey>`, `<fieldKey>[<itemId>]`.
-- Fingerprint = `c53:` + hash cyrb53 (53-bit) của JSON chuẩn hóa (sắp khóa, NFC, bỏ `undefined`). Hàm đồng bộ, thuần JS, không phụ thuộc Node `crypto`.
-- Nội dung AI (task sau) lưu `{ factRef → fingerprint }` của các dữ kiện đã dùng. `findStaleRefs` so với fingerprint hiện tại.
+### Q2 — Tên hiển thị
 
-| Thao tác                         | Kết quả                                                                                                                                                                  |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Sửa trường đơn                   | Fingerprint của trường đổi                                                                                                                                               |
-| Sửa một phần tử                  | Fingerprint phần tử đó + trường cha đổi; phần tử khác giữ nguyên                                                                                                         |
-| Thêm phần tử                     | Ref mới (`added`) + trường cha đổi                                                                                                                                       |
-| Xóa phần tử                      | Ref biến mất (`removed`) + trường cha đổi ⇒ nội dung dùng phần tử đó bị lỗi thời                                                                                         |
-| Sắp xếp lại                      | Chỉ trường cha đổi; nội dung chỉ dùng từng phần tử **không** bị lỗi thời, nội dung phụ thuộc thứ tự (ví dụ dòng thời gian) tham chiếu ref của trường nên **bị** lỗi thời |
-| specified ↔ not_applicable ↔ xóa | Fingerprint trường đổi / biến mất                                                                                                                                        |
-| Đổi nhãn trường tùy chỉnh        | Không đổi (nhãn không thuộc dữ kiện)                                                                                                                                     |
-| Sửa rồi hoàn tác                 | Fingerprint trở lại như cũ ⇒ không lỗi thời                                                                                                                              |
+Giữ như TASK 02. Không có hàm đồng bộ; test bảo đảm `displayName` khác `identity.full_name` vẫn hợp lệ.
 
-Lưu ý:
+### Q4 — Quan hệ ngược
 
-- cyrb53 không phải hash bảo mật; xác suất trùng với vài trăm dữ kiện của một nhân vật là không đáng kể. Tiền tố thuật toán cho phép đổi sang SHA-256 (WebCrypto) sau này mà không hiểu nhầm fingerprint cũ.
-- Nội dung có thể "thiếu" khi người dùng _thêm_ dữ kiện mới mà phần đó chưa dùng. Phát hiện bằng cách so tập ref trong phạm vi (ví dụ cả nhóm Ngoại hình) — để task AI quyết định phạm vi; `diffFactFingerprints` đã trả về `added`.
-- Độ chi tiết truy vết dừng ở mức phần tử (không xuống trường con) — đủ để chỉ ra "sự kiện X đã đổi", tránh bùng nổ số ref.
-- TASK 03 vẫn có thể thêm `revision` cấp bản ghi cho **optimistic locking** — mục đích khác, không dùng cho truy vết.
+Gợi ý khi A liên kết tới B và B chưa có quan hệ nào liên kết tới A. Gợi ý **không** mang loại/trạng thái (không suy ra "mentor" ⇒ "mentee", không coi "friend" là đối xứng). Chỉ xét `relationships.entries`.
 
-## 5. Dữ kiện tùy chỉnh
+### Q5 — Xóa OC được tham chiếu
 
-| Phương án phạm vi định nghĩa                             | Ưu                                                                  | Nhược                                                                     |
-| -------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| **Theo từng nhân vật** (đề xuất tạm thời, đã triển khai) | Tự chứa: fact sheet tự validate được; không ảnh hưởng nhân vật khác | Lặp định nghĩa khi nhiều nhân vật cùng thế giới dùng chung trường         |
-| Toàn thư viện                                            | Dùng chung, nhất quán                                               | Sửa định nghĩa ảnh hưởng mọi nhân vật; cần migration dữ liệu khi đổi kiểu |
-| Theo mẫu hồ sơ / bộ sưu tập                              | Khớp mô hình "thế giới"                                             | Phụ thuộc thiết kế Templates/Collections chưa có                          |
+- `unlinked` + `detachedFrom { characterId, reason: "character_deleted", at }` phân biệt 3 trường hợp (liên kết / chưa có hồ sơ / từng liên kết) mà không cần kiểu tham chiếu mới — dữ liệu v1 vẫn hợp lệ.
+- `detachDeletedCharacter` là hàm thuần; `at` do caller truyền (domain không đọc đồng hồ).
+- Không tự liên kết lại, kể cả khi OC được khôi phục (xem câu hỏi mở).
 
-Kiến trúc hiện tại cho phép chuyển sang hai phương án sau: chỉ cần thay nguồn của `findFieldDefinition`. Xem Q1.
+### Q6 — Nhạy cảm
 
-Validation đi kèm: khóa `custom.<id>`, nhóm `cg_<id>`, một cấp nhóm con, trường con chỉ kiểu lá, nhãn bắt buộc, giới hạn số lượng (30 nhóm, 200 trường, 30 trường con, 100 lựa chọn).
+- Mức phân loại ở **định nghĩa** (trường, trường con), không ở giá trị: người dùng không phải đánh dấu từng lần nhập, và chính sách áp dụng nhất quán.
+- Quyền cho phép là **tham số theo request**. Domain cố ý không có nơi lưu quyền ⇒ không thể "nhớ" sự đồng ý.
+- `explicit_none`/`not_applicable` của trường nhạy cảm cũng bị loại — "xác nhận không có tổn thương" cũng là thông tin riêng tư.
+- Trường con nhạy cảm không được `required`, để việc gỡ không làm phần tử mất hợp lệ.
 
-## 6. Validation layer
+### Q7 — Cơ bản / Nâng cao
 
-- **Zod 4, strict objects, không transform.** Khóa lạ bị từ chối thay vì bị xóa âm thầm; output parse === input (có test với dữ liệu bị đóng băng).
-- **Kiểm tra theo định nghĩa lúc chạy:** `valueSchemaFor(definition)` dựng schema cho từng trường (có cache), `characterFactsSchema` duyệt `values` và gắn lỗi đúng path (`values.<key>.value.<index>.<sub>`), thuận tiện cho form ở TASK 04/05.
-- **Types viết tay + kiểm tra tương thích lúc biên dịch** (`SchemaTypeChecks`): đọc types dễ hơn kiểu suy ra từ schema động, và lệch giữa hai bên làm `tsc` báo lỗi.
-- **Domain độc lập:** chỉ phụ thuộc `zod`; test kiểm tra không import React/Next/Drizzle/pg/AI SDK/alias `@/`.
-- **Thông báo lỗi tiếng Việt** đặt tập trung trong `schemas.ts` — cần chuyển sang cơ chế mã lỗi + dịch khi có i18n thật.
-- **Không kiểm tra chéo giữa các trường** (tuổi ↔ ngày sinh, chiều cao ↔ vóc dáng…): đó là suy luận, có thể sai với nhân vật hư cấu.
-- **Không kiểm tra sự tồn tại** của `characterId` trong thư viện: đó là việc của tầng lưu trữ (TASK 03).
+Metadata trình bày tách khỏi định nghĩa dữ liệu (`presentation.ts`) — không thay đổi mô hình lưu. Trường đã có dữ liệu nhưng bị ẩn được báo `hidden_with_data`.
 
-### Ưu điểm tổng thể
+### Q8 — Giới tính
 
-- Mọi trường tùy chọn; ba trạng thái rõ ràng, một cách biểu diễn cho mỗi trạng thái.
-- Bao phủ nhân vật hiện đại lẫn phi nhân loại mà không cần trường đặc thù cho từng thể loại.
-- Dữ liệu gọn, đọc được, lưu thẳng vào JSONB, dùng thẳng làm đầu vào AI (khóa + mã + văn bản gốc).
-- Truy vết ổn định khi thêm/xóa/sắp xếp; không cần lưu trạng thái phụ.
-- Định nghĩa có cấu trúc đủ để sinh form tự động.
+- Không tái sử dụng `identity.gender`: nghĩa cũ mơ hồ, dùng lại khóa với nghĩa mới sẽ âm thầm diễn giải dữ liệu cũ.
+- `identity.gender` thành **deprecated** thay vì bị xóa: dữ liệu v1 vẫn hợp lệ ở v2 ⇒ migration không bao giờ mất dữ liệu; editor ẩn trường này trừ khi có dữ liệu cũ, để người dùng tự chuyển.
+- Lựa chọn trung tính, luôn có `other` và `not_applicable` cho nhân vật phi nhân loại.
 
-### Nhược điểm / rủi ro
+### Q9 — Ngôn ngữ nguồn
 
-- Kiểu tĩnh yếu hơn với `values` (bù bằng validation runtime).
-- 85 trường mặc định — form đầy đủ có thể quá dài; cần chiến lược hiển thị (Q7).
-- Định nghĩa tùy chỉnh theo nhân vật có thể bị lặp (Q1).
-- Truy vấn SQL vào bên trong giá trị (ví dụ "nhân vật cao trên 180 cm") phức tạp hơn so với cột riêng — chấp nhận được với ứng dụng cá nhân.
-- Đổi kiểu một trường tùy chỉnh đã có dữ liệu sẽ làm giá trị cũ không hợp lệ ⇒ editor tương lai phải chặn hoặc migrate.
+| Vị trí                                     | Đánh giá                                                                     |
+| ------------------------------------------ | ---------------------------------------------------------------------------- |
+| Metadata bản ghi (cột DB)                  | Tách khỏi dữ kiện khi xuất/nhập JSON; AI phải đọc hai nơi                    |
+| **`CharacterFacts.sourceLanguage`** (chọn) | Đi cùng dữ kiện; validate cùng schema; tùy chọn                              |
+| Theo từng trường                           | Nặng, không cần — yêu cầu cho phép trộn ngôn ngữ mà không bắt mã theo trường |
 
-## 7. Quyết định cần người dùng xác nhận
+Chỉ nhận dạng chuẩn (`Intl.getCanonicalLocales`) để một ngôn ngữ luôn được lưu một cách.
 
-| #   | Câu hỏi                                                                                                                                                        | Đề xuất hiện tại                                                                |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Q1  | Định nghĩa trường/nhóm tùy chỉnh thuộc phạm vi nào: từng nhân vật, toàn thư viện, hay theo Mẫu hồ sơ / Bộ sưu tập?                                             | Từng nhân vật (đã triển khai), sẽ mở rộng theo Mẫu hồ sơ khi thiết kế Templates |
-| Q2  | `displayName` độc lập hay tự lấy từ `identity.common_name` / `full_name`?                                                                                      | Độc lập, bắt buộc; UI có thể gợi ý từ trường tên                                |
-| Q3  | Với trường danh sách (hình xăm, sẹo…), "đã xác nhận là không có" nên là `not_applicable`, hay cần trạng thái/biểu diễn riêng (ví dụ danh sách rỗng được phép)? | Dùng `not_applicable`                                                           |
-| Q4  | Khi tạo quan hệ A → B (B là OC trong thư viện), UI có nên _gợi ý_ tạo quan hệ ngược ở B không? (Không bao giờ tự tạo.)                                         | Chỉ gợi ý, người dùng tự nhập                                                   |
-| Q5  | Khi xóa một OC đang được nhân vật khác tham chiếu: chặn xóa, chuyển tham chiếu thành `unlinked` (giữ tên), hay để tham chiếu treo?                             | Chuyển thành `unlinked` với tên hiện tại — quyết định ở TASK 03                 |
-| Q6  | Dữ kiện nhạy cảm (`psychology.wounds`, …) có cần đánh dấu để mặc định **không** gửi cho AI, hoặc cần xác nhận trước khi gửi?                                   | Chưa đánh dấu; cần quyết định trước task AI                                     |
-| Q7  | 85 trường mặc định: editor nên hiển thị tất cả, hay có bộ "cơ bản" và bộ "mở rộng"? Có trường nào nên bỏ/thêm?                                                 | Giữ đủ trong domain; editor hiển thị theo nhóm thu gọn                          |
-| Q8  | Giới tính: danh sách lựa chọn `female`/`male`/`non_binary` + "khác" có phù hợp? Có cần tách giới tính sinh học và bản dạng giới?                               | Một trường, cho phép "khác"                                                     |
-| Q9  | Hồ sơ có cần ghi "ngôn ngữ của dữ kiện" (ví dụ dữ kiện viết bằng tiếng Việt) để AI biết ngôn ngữ nguồn?                                                        | Chưa có; thêm khi làm task AI                                                   |
-| Q10 | Độ chi tiết truy vết ở mức phần tử (ví dụ cả sự kiện) có đủ, hay cần xuống trường con (`events[e1].impact`)?                                                   | Mức phần tử                                                                     |
-| Q11 | Các giới hạn (300 / 20 000 ký tự, 200 phần tử, 500 sự kiện…) có phù hợp?                                                                                       | Như hiện tại                                                                    |
-| Q12 | Mẫu hồ sơ (Templates) có được ẩn/hiện, đổi thứ tự trường có sẵn không, hay chỉ thêm trường tùy chỉnh?                                                          | Chưa quyết định — thuộc thiết kế Templates                                      |
+### Q11 — Giới hạn
 
-## 8. Dành cho TASK 03 (chưa thực hiện)
+Giữ nguyên giá trị; gom vào `LIMITS`. Tách riêng `historyEvents` (500) thay vì số cứng trong định nghĩa. Thông báo lỗi nêu giới hạn.
 
-Gợi ý, **không** phải quyết định đã chốt:
+### Q12 — Mẫu hồ sơ
 
-- Bảng `characters`: `id uuid`, `display_name text` (trùng `facts.displayName` hoặc chỉ lưu một nơi), `facts jsonb` (cả `values` và `custom`), `schema_version int`, `created_at`, `updated_at`, có thể `revision int` cho optimistic locking.
-- Validate bằng `characterFactsSchema` ở mọi đường ghi (Server Actions); database không tự sửa dữ liệu.
-- Tham chiếu nhân vật nằm trong JSONB nên không có foreign key — cân nhắc bảng phụ `character_references` (trích xuất khi lưu) để tìm "ai đang tham chiếu tới B" và xử lý Q5.
-- Index: B-tree trên `display_name`; GIN trên `facts` nếu cần tìm kiếm.
-- Migration dữ liệu theo `schemaVersion` khi cấu trúc thay đổi.
-- Nơi lưu định nghĩa tùy chỉnh phụ thuộc Q1.
+Contract chỉ gồm `hiddenFields`, `fieldOrder`, `groupPlacement`, `libraryFields`. Schema strict nên mẫu không thể mang khóa/kiểu/giá trị. Mẫu là đối tượng cấp thư viện ⇒ không được tham chiếu trường riêng của một nhân vật.
+
+## 7. Phiên bản schema và tương thích
+
+**Tăng lên `schemaVersion: 2`** vì: thêm trạng thái mới (`explicit_none`), thêm thuộc tính cấp sheet (`sourceLanguage`), thay đổi ngữ nghĩa trường giới tính. Một bộ đọc v1 sẽ hiểu sai hoặc từ chối dữ liệu v2.
+
+| Thay đổi                                                              | Phá vỡ tương thích?                     | Xử lý                                                  |
+| --------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------ |
+| `parseCharacterFacts` chỉ nhận v2                                     | **Có** với dữ liệu v1                   | `migrateCharacterFacts` (thuần dữ liệu, không mất mát) |
+| `explicit_none`                                                       | Có với bộ đọc v1                        | —                                                      |
+| `identity.gender` deprecated                                          | Không (vẫn hợp lệ)                      | Review thủ công                                        |
+| `detachedFrom`, `sensitivity`, `allowExplicitNone`, `sourceLanguage`  | Không (tùy chọn)                        | —                                                      |
+| Fingerprint trường tùy chỉnh có ngữ nghĩa định nghĩa                  | Có với fingerprint đã lưu               | Chưa có fingerprint nào được lưu (chưa có AI)          |
+| `normalizeFactInput` thêm `explicitNone`                              | Không                                   | —                                                      |
+| `CHARACTER_FACTS_SCHEMA_VERSION`, `LIMITS` chuyển sang `constants.ts` | Không (vẫn export từ `domain/index.ts`) | —                                                      |
+| `findFieldDefinition` nhận thêm `context`                             | Không (tham số tùy chọn)                | —                                                      |
+
+Migration không thể xác định ⇒ không đoán: giới tính và `not_applicable` được trả về trong `review`; dữ liệu "v1" không hợp lệ hoặc chứa tính năng v2 ⇒ `rejected`.
+
+## 8. Câu hỏi mở
+
+### Cho TASK 03 (PostgreSQL & Drizzle)
+
+1. **Lưu định nghĩa thư viện:** bảng riêng (`library_field_definitions` có `key`, `version`, `definition jsonb`) và cổng `findBreakingChanges` khi cập nhật.
+2. **Xóa định nghĩa thư viện đang được dùng:** chặn xóa, hay chuyển thành deprecated? (Domain hiện báo lỗi "thiếu định nghĩa" nếu bị xóa.)
+3. **Xóa OC:** chạy `detachDeletedCharacter` trên mọi nhân vật tham chiếu trong cùng transaction; cần chỉ mục tham chiếu (trích từ `collectLinkedReferences`) để tìm nhanh.
+4. **Khôi phục OC đã xóa (nếu có thùng rác):** có đề xuất liên kết lại các tham chiếu có `detachedFrom.characterId` trùng không? Domain **không** tự liên kết lại; mọi liên kết lại phải do người dùng xác nhận.
+5. `displayName` lưu ở cột riêng (để sắp xếp/tìm kiếm) và trong JSON — nguồn nào là gốc, và đồng bộ ra sao.
+6. Có cần `revision` cấp bản ghi cho optimistic locking (khác mục đích với fingerprint).
+7. Migration dữ liệu khi đọc (`migrateCharacterFacts` lúc load) hay chạy một lần cho toàn bộ bảng; cách hiển thị danh sách `review` cho người dùng.
+
+### Cho các task sau
+
+- Độ nhạy cảm theo **từng phần tử** (một sự kiện cụ thể) — hiện chỉ theo trường/trường con.
+- Lưu lựa chọn "cho phép gửi trường nhạy cảm" trong một phiên làm việc (domain chỉ nhận theo request).
+- Danh sách `BASIC_FIELD_KEYS` là đề xuất — điều chỉnh khi thiết kế editor.
+- Trường có sẵn nào nữa nên nhạy cảm (ví dụ `identity.biological_sex`, `background.family`)? Hiện chỉ đánh dấu 3 trường + 1 trường con.
+- UI gợi ý `displayName` và quan hệ ngược.
+
+## 9. Giả định kỹ thuật
+
+- `Intl.getCanonicalLocales` có sẵn ở mọi môi trường chạy (Node ≥ 24, trình duyệt hiện đại).
+- Item id do client sinh và duy nhất trong danh sách; domain không sinh id.
+- Caller luôn truyền **cùng** `DefinitionContext` cho validation, fingerprint, lọc AI và migration của một nhân vật.
+- Thời điểm (`detachedFrom.at`) do caller cung cấp; domain không đọc đồng hồ.
+- Domain chỉ phụ thuộc `zod`; test kiểm tra không import React/Next/Drizzle/pg/AI SDK/alias `@/`.

@@ -2,7 +2,7 @@
 
 Ứng dụng web cá nhân để tạo, quản lý và biên tập hồ sơ nhân vật hư cấu (Original Characters) phục vụ viết truyện và roleplay.
 
-> **Trạng thái:** TASK 01 — nền tảng dự án. Mới có application shell, theme, kết nối PostgreSQL và các trang khung. Chưa có domain schema, CRUD nhân vật, AI hay xuất PDF.
+> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01) và mô hình dữ kiện nhân vật `schemaVersion: 2` ở tầng domain (TASK 02, 02.1 — xem `docs/`). Chưa có bảng database, CRUD nhân vật, editor, AI hay xuất PDF.
 
 ## Yêu cầu môi trường
 
@@ -52,7 +52,7 @@ pnpm install
 
 ### Migrations
 
-Schema Drizzle nằm ở `src/db/schema/`, migrations sinh ra ở `src/db/migrations/`. Hiện **chưa có bảng nào** — domain model sẽ được bổ sung ở task sau.
+Schema Drizzle nằm ở `src/db/schema/`, migrations sinh ra ở `src/db/migrations/`. Hiện **chưa có bảng nào** — domain model đã được đặc tả trong `docs/character-fact-schema.md`; bảng và migrations thuộc TASK 03.
 
 ```bash
 pnpm db:generate   # sinh migration SQL từ schema
@@ -102,7 +102,8 @@ src/
 │   ├── shared/               # PageHeader, EmptyState, UnavailableAction
 │   └── providers/            # ThemeProvider
 ├── features/                 # Module theo nghiệp vụ
-│   ├── characters/           #   Character Fact domain (types, Zod schemas, definitions), CharacterCard
+│   ├── characters/           #   Character Fact domain v2 (types, Zod schemas, definitions, migration,
+│   │                         #   traceability, AI fact filtering, presentation rules), CharacterCard
 │   ├── settings/             #   ThemeSelector, theme options
 │   └── system-status/        #   Trạng thái ứng dụng / database
 ├── db/

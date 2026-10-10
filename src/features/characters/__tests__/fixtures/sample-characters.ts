@@ -1,22 +1,59 @@
 /**
  * ⚠️ DỮ LIỆU MINH HỌA — ILLUSTRATIVE SAMPLE DATA ONLY.
- * Fictional characters written to exercise the Character Fact schema in tests and docs.
+ * Fictional characters written to exercise the Character Fact schema (v2) in tests and docs.
  * Not user data; must never be seeded into the database or shown as real content.
  */
-import type { CharacterFacts } from "../../domain";
+import type { CharacterFacts, DefinitionContext, LibraryDefinitions } from "../../domain";
 
 /** Fixed fake library ids so samples can reference each other. */
 export const SAMPLE_CHARACTER_IDS = {
   contemporary: "0b5c4a6e-2f1d-4c1e-9a7b-3d2e1f0a9b8c",
   fantasy: "7e9d8c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b",
   minimal: "c3a1e5f7-9b2d-4f6a-8e0c-2d4b6a8c0e1f",
+  /** A character that was deleted from the library (referenced only via `detachedFrom`). */
+  deleted: "5d2b9f40-8c1e-4a7b-b3d6-0e9f8a7c6b5d",
 } as const;
 
-/** Character A — contemporary, mostly human-scale facts, several fields left unspecified. */
+/** Library-scoped definitions shared by several samples (Q1). */
+export const sampleLibrary: LibraryDefinitions = {
+  groups: [{ id: "lg_worldbuilding", label: "Thế giới quan" }],
+  fields: [
+    {
+      key: "lib.zodiac",
+      version: 2,
+      group: "identity",
+      label: "Con giáp",
+      kind: "single_select",
+      options: [
+        { code: "rat", label: "Tý" },
+        { code: "ox", label: "Sửu" },
+        { code: "tiger", label: "Dần" },
+        { code: "cat", label: "Mão" },
+      ],
+    },
+    {
+      key: "lib.secret",
+      version: 1,
+      group: "lg_worldbuilding",
+      label: "Bí mật thầm kín",
+      kind: "long_text",
+      sensitivity: "sensitive",
+    },
+  ],
+};
+
+export const sampleContext: DefinitionContext = { library: sampleLibrary };
+
+/**
+ * Character A — contemporary. Linked, unlinked and detached relationships; explicit none;
+ * a sensitive built-in fact; library fields; source language set.
+ */
 export const sampleContemporary: CharacterFacts = {
-  schemaVersion: 1,
-  displayName: "Trần Bảo Ngọc",
+  schemaVersion: 2,
+  displayName: "Ngọc",
+  sourceLanguage: "vi",
   values: {
+    // displayName ("Ngọc") deliberately differs from the full name (Q2).
     "identity.full_name": { state: "specified", value: "Trần Bảo Ngọc" },
     "identity.given_name": { state: "specified", value: "Ngọc" },
     "identity.family_name": { state: "specified", value: "Trần" },
@@ -30,7 +67,8 @@ export const sampleContemporary: CharacterFacts = {
     "identity.age": { state: "specified", value: { value: 27, unit: "years" } },
     // Birthday known, birth year deliberately not entered.
     "identity.birth_date": { state: "specified", value: { type: "calendar", month: 3, day: 14 } },
-    "identity.gender": { state: "specified", value: { option: "female" } },
+    "identity.gender_identity": { state: "specified", value: { option: "woman" } },
+    "identity.biological_sex": { state: "specified", value: { option: "female" } },
     "identity.pronouns": { state: "specified", value: "chị / cô ấy" },
     "identity.nationality": { state: "specified", value: "Việt Nam" },
     "identity.species": { state: "specified", value: "Người" },
@@ -49,6 +87,8 @@ export const sampleContemporary: CharacterFacts = {
       state: "specified",
       value: [{ id: "tattoo_mai", description: "Một cành mai nhỏ", location: "Cổ tay trái" }],
     },
+    // Confirmed: no scars (Q3) — different from "not entered" and from "not applicable".
+    "appearance.scars": { state: "explicit_none" },
     "appearance.clothing_style": {
       state: "specified",
       value: "Áo len rộng, quần jean ống suông, luôn đeo tạp dề dính màu khi làm việc.",
@@ -75,6 +115,12 @@ export const sampleContemporary: CharacterFacts = {
         { id: "like_mua", text: "Tiếng mưa trên mái tôn" },
         { id: "like_ca_phe", text: "Cà phê muối" },
       ],
+    },
+
+    // Sensitive built-in field (Q6): excluded from AI input unless allowed per request.
+    "psychology.wounds": {
+      state: "specified",
+      value: [{ id: "wound_bo_roi_di", description: "Bố rời gia đình khi Ngọc lên mười." }],
     },
 
     "lifestyle.occupation": { state: "specified", value: "Họa sĩ minh họa tự do kiêm pha chế" },
@@ -117,29 +163,55 @@ export const sampleContemporary: CharacterFacts = {
       state: "specified",
       value: [
         {
+          // 1. Linked to an OC in the library.
           id: "rel_khai",
           person: { type: "character", characterId: SAMPLE_CHARACTER_IDS.minimal },
           type: { option: "friend" },
           description: "Bạn thân từ thời đại học.",
         },
         {
+          // 2. Unlinked: a character with no profile of their own.
           id: "rel_me",
           person: { type: "unlinked", name: "Mẹ của Ngọc", note: "Chưa có hồ sơ riêng." },
           type: { option: "family" },
           status: { option: "strained" },
         },
+        {
+          // 3. Detached: was linked to an OC that has since been deleted (Q5).
+          id: "rel_thay_lam",
+          person: {
+            type: "unlinked",
+            name: "Thầy Lâm",
+            detachedFrom: {
+              characterId: SAMPLE_CHARACTER_IDS.deleted,
+              reason: "character_deleted",
+              at: "2026-09-30T08:15:00Z",
+            },
+          },
+          type: { option: "mentor" },
+          description: "Thầy dạy vẽ đầu tiên.",
+        },
       ],
     },
-    // Weight, eye colour, psychology, background… intentionally unspecified (absent).
+
+    // Library-scoped fields (Q1), resolved through `sampleContext`.
+    "lib.zodiac": { state: "specified", value: { option: "cat" } },
+    "lib.secret": { state: "specified", value: "Vẫn giữ bức thư chưa từng gửi cho bố." },
+    // Weight, eye colour, background… intentionally unspecified (absent).
   },
 };
 
-/** Character B — non-human fantasy: unusual anatomy, not-applicable fields, custom facts. */
+/**
+ * Character B — non-human fantasy: unusual anatomy, not-applicable fields, character-scoped
+ * custom facts (one sensitive), gender identity outside the option list.
+ */
 export const sampleFantasy: CharacterFacts = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   displayName: "Dạ Vân",
+  sourceLanguage: "vi",
   values: {
     "identity.common_name": { state: "specified", value: "Dạ Vân" },
+    // Spirits of this world have no concept of family names.
     "identity.family_name": { state: "not_applicable" },
     "identity.other_names": {
       state: "specified",
@@ -157,10 +229,11 @@ export const sampleFantasy: CharacterFacts = {
       state: "specified",
       value: { type: "text", text: "Đêm trăng non thứ ba của Kỷ Sương Mù" },
     },
-    "identity.gender": {
+    "identity.gender_identity": {
       state: "specified",
       value: { other: "Không mang giới tính theo khái niệm của loài người" },
     },
+    "identity.biological_sex": { state: "not_applicable" },
     "identity.pronouns": { state: "specified", value: "nó / người ấy" },
     "identity.nationality": { state: "not_applicable" },
     "identity.species": { state: "specified", value: "Tinh linh bướm đêm" },
@@ -183,6 +256,7 @@ export const sampleFantasy: CharacterFacts = {
         { id: "feat_antennae", name: "Râu hình lông vũ" },
       ],
     },
+    // Piercings do not apply to this body (Q3: not_applicable, not explicit_none).
     "appearance.piercings": { state: "not_applicable" },
 
     "personality.core_traits": {
@@ -203,6 +277,7 @@ export const sampleFantasy: CharacterFacts = {
           id: "spell_dream",
           name: "Dệt giấc mơ",
           description: "Chỉ dùng được với người đang ngủ.",
+          weakness: "Mất tác dụng nếu người ngủ gọi đúng tên thật của Dạ Vân.",
         },
       ],
     },
@@ -214,6 +289,9 @@ export const sampleFantasy: CharacterFacts = {
       state: "specified",
       value: "Hoa văn hình mắt cú trên cánh sau, chỉ hiện rõ dưới ánh trăng.",
     },
+    "custom.true_name": { state: "specified", value: "Lục Dạ Vân Thường" },
+    // A library field that does not apply to this character.
+    "lib.zodiac": { state: "not_applicable" },
   },
   custom: {
     groups: [
@@ -248,6 +326,7 @@ export const sampleFantasy: CharacterFacts = {
           { key: "name", label: "Tên phép", kind: "short_text", required: true },
           { key: "cost", label: "Ma lực tiêu hao", kind: "number", min: 0 },
           { key: "description", label: "Mô tả", kind: "long_text" },
+          { key: "weakness", label: "Điểm yếu", kind: "long_text", sensitivity: "sensitive" },
         ],
       },
       {
@@ -262,13 +341,20 @@ export const sampleFantasy: CharacterFacts = {
         label: "Hoa văn trên cánh",
         kind: "long_text",
       },
+      {
+        key: "custom.true_name",
+        group: "identity",
+        label: "Tên thật",
+        kind: "short_text",
+        sensitivity: "sensitive",
+      },
     ],
   },
 };
 
-/** Character C — minimal: a name and a couple of traits. Everything else unspecified. */
+/** Character C — minimal: a name and a couple of traits. Language unknown, nothing else set. */
 export const sampleMinimal: CharacterFacts = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   displayName: "Khải",
   values: {
     "personality.core_traits": {
