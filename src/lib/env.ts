@@ -6,8 +6,17 @@ const serverEnvSchema = z.object({
   AI_PROVIDER: z.enum(["gemini", "openai"]).default("gemini"),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().optional(),
+  /** Comma-separated Gemini model ids the app may offer; GEMINI_MODEL must be one of them. */
+  GEMINI_ALLOWED_MODELS: z.string().max(2_000).optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().optional(),
+  /** How long one AI request may take before the server aborts it (10 s – 15 min). */
+  AI_REQUEST_TIMEOUT_MS: z.coerce
+    .number({ error: "AI_REQUEST_TIMEOUT_MS phải là số mili giây." })
+    .int("AI_REQUEST_TIMEOUT_MS phải là số nguyên.")
+    .min(10_000, "AI_REQUEST_TIMEOUT_MS tối thiểu 10000 (10 giây).")
+    .max(900_000, "AI_REQUEST_TIMEOUT_MS tối đa 900000 (15 phút).")
+    .default(300_000),
   DATABASE_URL: z
     .url({
       protocol: /^postgres(ql)?$/,

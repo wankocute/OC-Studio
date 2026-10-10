@@ -1,143 +1,227 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import { useId, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { messages } from "@/i18n";
 import type { ActionResult } from "@/lib/action-result";
 import { AI_LIMITS } from "../ai/constants";
 import {
-  previewSectionAiAction,
-  generateSectionAiAction,
   applySectionAiAction,
+  cancelSectionAiJobAction,
   discardSectionAiAction,
+  dismissSectionAiJobAction,
+  previewSectionAiAction,
+  startSectionAiAction,
 } from "../ai/actions";
+import type { AiJobView } from "../ai/service";
 import type { SectionDraftState } from "../workspace/state";
 import type { RestoredView } from "../actions";
 import { RichTextView } from "./rich-text-view";
+import { isActiveJob } from "./use-ai-jobs";
 
 const t = messages.profileAi;
+const timeFormat = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" });
 type Preview = Extract<Awaited<ReturnType<typeof previewSectionAiAction>>, { ok: true }>["data"];
-type Candidate = Extract<Awaited<ReturnType<typeof generateSectionAiAction>>, { ok: true }>["data"];
 
+/** What the workspace keeps for one section's AI job, and the dialog it can open. */
+export type SectionAiControl = {
+  job: AiJobView | undefined;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  track: (job: AiJobView) => void;
+  forget: () => void;
+};
+
+/**
+ * AI for one section. Generation runs as a server job: the dialog can be closed at any time and
+ * reopened; leaving the page does not cancel it. A finished suggestion is only ever applied by
+ * the user, as a draft.
+ */
 export function SectionAi({
   sectionId,
   draft,
   onApplied,
+  ai,
 }: {
   sectionId: string;
   draft: SectionDraftState;
   onApplied: (value: RestoredView) => void;
+  ai: SectionAiControl;
 }) {
-  const [open, setOpen] = useState(false);
+  const { job, open, setOpen } = ai;
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [allow, setAllow] = useState<string[]>([]);
   const [instruction, setInstruction] = useState("");
+  /** Picked model id; `null` = the server's default. Fixed into the job when it starts. */
+  const [model, setModel] = useState<string | null>(null);
+  const modelId = useId();
   const [error, setError] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, start] = useTransition();
   const lock = useRef(false);
   const saved = draft.status === "idle" || draft.status === "saved";
-  const changed = candidate && candidate.draftRevision !== draft.draftRevision;
+  const active = isActiveJob(job);
+  const result = job?.status === "succeeded" ? job.result : undefined;
+  const changed = result && result.draftRevision !== draft.draftRevision;
 
   function run<T>(work: () => Promise<ActionResult<T>>, success: (data: T) => void) {
     if (lock.current) return;
     lock.current = true;
     setError(null);
     start(async () => {
-      let result: ActionResult<T> | undefined;
+      let outcome: ActionResult<T> | undefined;
       try {
-        result = await work();
-        if (!result.ok) {
-          setError(result.error.message);
-          if (result.error.message === t.errors.stale) setStale(true);
-        }
+        outcome = await work();
+        if (!outcome.ok) setError(outcome.error.message);
       } catch {
         setError(t.errors.network);
       } finally {
         lock.current = false;
       }
-      if (result?.ok) success(result.data);
+      if (outcome?.ok) success(outcome.data);
     });
   }
   function prepare(next: string[] = []) {
-    setCandidate(null);
     setAllow(next);
     setConfirm(false);
-    setStale(false);
+    const oldToken = preview?.token;
     setPreview(null);
-    const oldToken = preview?.token ?? candidate?.token;
     run(async () => {
       if (oldToken) await discardSectionAiAction(oldToken);
       return previewSectionAiAction({ sectionId, allow: next });
     }, setPreview);
   }
+  /** Leave a finished job (and its suggestion) and start over from a fresh preview. */
+  function startOver() {
+    if (job && !isActiveJob(job)) {
+      const finished = job;
+      ai.forget();
+      void dismissSectionAiJobAction(finished.id);
+      if (finished.result) void discardSectionAiAction(finished.result.token);
+    }
+    prepare();
+  }
+  function openDialog() {
+    setOpen(true);
+    setError(null);
+    if (!job) {
+      setInstruction("");
+      setModel(null);
+      prepare();
+    }
+  }
+  function close() {
+    setOpen(false);
+    // Consent is per request: an unused preview is dropped. Jobs and suggestions stay.
+    if (preview) void discardSectionAiAction(preview.token);
+    setPreview(null);
+    setAllow([]);
+  }
+
   return (
     <>
       <Button
         type="button"
         variant="outline"
-        disabled={!saved || busy}
-        title={!saved ? t.savedFirst : undefined}
-        onClick={() => {
-          setOpen(true);
-          setInstruction("");
-          prepare();
-        }}
+        disabled={!job && !saved}
+        title={!job && !saved ? t.savedFirst : undefined}
+        onClick={openDialog}
+        data-testid="section-ai-button"
       >
-        {t.open}
+        {active ? (
+          <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden />
+        ) : (
+          <Sparkles data-icon="inline-start" aria-hidden />
+        )}
+        {active ? t.job.running : result ? t.job.ready : t.open}
       </Button>
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          if (busy) return;
-          setOpen(next);
-          if (!next) {
-            const token = candidate?.token ?? preview?.token;
-            if (token)
-              run(
-                () => discardSectionAiAction(token),
-                () => {},
-              );
-            setAllow([]);
-            setPreview(null);
-            setCandidate(null);
-          }
-        }}
-      >
-        <DialogContent
-          className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
-          aria-describedby={undefined}
-        >
+      <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t.title}</DialogTitle>
+            <DialogDescription>{t.notice}</DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">{t.notice}</p>
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-sm whitespace-pre-line text-destructive">
               {error}
             </p>
           )}
-          {candidate ? (
+
+          {active && job ? (
+            <div className="space-y-3" role="status" aria-live="polite">
+              <p className="flex items-center gap-2 font-medium">
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                {t.job.running}
+              </p>
+              <p className="text-sm text-muted-foreground">{t.model.used(job.model.label)}</p>
+              <p className="text-sm text-muted-foreground">
+                {t.job.runningHint(
+                  timeFormat.format(new Date(job.startedAt)),
+                  timeFormat.format(new Date(job.deadlineAt)),
+                )}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={close}>
+                  {t.job.closeKeepRunning}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() =>
+                    run(
+                      () => cancelSectionAiJobAction(job.id),
+                      (view) => view && ai.track(view),
+                    )
+                  }
+                >
+                  {t.job.cancel}
+                </Button>
+              </div>
+            </div>
+          ) : result ? (
             <div className="space-y-3">
               <h3 className="font-medium">{t.candidate}</h3>
-              <RichTextView content={candidate.content} />
-              {stale && (
-                <p role="alert" className="text-sm text-warning">
-                  {t.stale}
+              {job && (
+                <p className="text-xs text-muted-foreground" data-testid="ai-model-used">
+                  {t.model.used(job.model.label)}
                 </p>
               )}
-              {stale && (
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={confirm}
-                    onChange={(event) => setConfirm(event.target.checked)}
-                  />
-                  {t.confirmStale}
-                </label>
+              <p className="text-xs text-muted-foreground">
+                {t.job.expiresAt(timeFormat.format(new Date(result.expiresAt)))}
+              </p>
+              <div className="rounded-lg border p-3" data-testid="ai-candidate">
+                <RichTextView content={result.content} />
+              </div>
+              {result.stale && (
+                <>
+                  <p role="alert" className="text-sm text-warning">
+                    {t.stale}
+                  </p>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={confirm}
+                      onChange={(event) => setConfirm(event.target.checked)}
+                    />
+                    {t.confirmStale}
+                  </label>
+                </>
               )}
               {changed && (
                 <p role="alert" className="text-sm text-warning">
@@ -147,13 +231,13 @@ export function SectionAi({
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  disabled={busy || !saved || !!changed || (stale && !confirm)}
+                  disabled={busy || !saved || !!changed || (result.stale && !confirm)}
                   onClick={() =>
                     run(
-                      () => applySectionAiAction({ token: candidate.token, confirmStale: confirm }),
-                      (result) => {
-                        onApplied(result);
-                        setCandidate(null);
+                      () => applySectionAiAction({ token: result.token, confirmStale: confirm }),
+                      (applied) => {
+                        onApplied(applied);
+                        ai.forget();
                         setOpen(false);
                       },
                     )
@@ -161,17 +245,7 @@ export function SectionAi({
                 >
                   {t.apply}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    run(
-                      () => discardSectionAiAction(candidate.token),
-                      () => prepare(),
-                    )
-                  }
-                >
+                <Button type="button" variant="outline" disabled={busy} onClick={startOver}>
                   {t.regenerate}
                 </Button>
                 <Button
@@ -180,15 +254,43 @@ export function SectionAi({
                   disabled={busy}
                   onClick={() =>
                     run(
-                      () => discardSectionAiAction(candidate.token),
+                      () => discardSectionAiAction(result.token),
                       () => {
-                        setCandidate(null);
+                        ai.forget();
                         setOpen(false);
                       },
                     )
                   }
                 >
                   {t.discard}
+                </Button>
+              </div>
+            </div>
+          ) : job ? (
+            <div className="space-y-3">
+              <p role="alert" className="text-sm whitespace-pre-line text-destructive">
+                {job.error?.message ?? t.errors.lost}
+              </p>
+              <p className="text-sm text-muted-foreground">{t.job.draftKept}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || !saved}
+                  onClick={startOver}
+                >
+                  {t.regenerate}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    ai.forget();
+                    void dismissSectionAiJobAction(job.id);
+                    close();
+                  }}
+                >
+                  {t.job.dismiss}
                 </Button>
               </div>
             </div>
@@ -242,6 +344,32 @@ export function SectionAi({
                   )}
                 </>
               )}
+              {preview && preview.models.length > 0 && (
+                <div className="space-y-1">
+                  <label htmlFor={modelId} className="text-sm font-medium">
+                    {t.model.label}
+                  </label>
+                  <Select
+                    value={model ?? preview.defaultModel ?? ""}
+                    onValueChange={setModel}
+                    disabled={busy}
+                  >
+                    <SelectTrigger id={modelId} className="w-full sm:w-80">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {preview.models.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                          {option.hint ? ` — ${option.hint}` : ""}
+                          {option.id === preview.defaultModel ? ` (${t.model.default})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{t.model.hint}</p>
+                </div>
+              )}
               <label className="block space-y-1 text-sm">
                 <span>{t.instruction}</span>
                 <Textarea
@@ -251,31 +379,34 @@ export function SectionAi({
                   onChange={(event) => setInstruction(event.target.value)}
                 />
               </label>
-              <Button
-                type="button"
-                disabled={busy || !preview?.configured || preview.empty}
-                onClick={() => {
-                  if (!preview) return;
-                  setPreview(null);
-                  setAllow([]);
-                  run(
-                    () => generateSectionAiAction({ token: preview.token, instruction }),
-                    (result) => {
-                      setCandidate(result);
-                      setStale(result.stale);
-                      setAllow([]);
-                      setPreview(null);
-                    },
-                  );
-                }}
-              >
-                {busy ? t.generating : t.generate}
-              </Button>
-              {error && (
-                <Button type="button" variant="outline" disabled={busy} onClick={() => prepare()}>
-                  {t.regenerate}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  disabled={busy || !saved || !preview?.configured || preview.empty}
+                  onClick={() => {
+                    if (!preview) return;
+                    const token = preview.token;
+                    setPreview(null);
+                    setAllow([]);
+                    run(
+                      () =>
+                        startSectionAiAction({
+                          token,
+                          instruction,
+                          ...(model ? { model } : {}),
+                        }),
+                      (view) => ai.track(view),
+                    );
+                  }}
+                >
+                  {busy ? t.generating : t.generate}
                 </Button>
-              )}
+                {error && (
+                  <Button type="button" variant="outline" disabled={busy} onClick={() => prepare()}>
+                    {t.regenerate}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

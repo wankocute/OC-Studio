@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { emptyDocument, type RichTextDocument } from "./domain";
-import { planPrint, type PrintableSection } from "./print";
+import { planPrint, type PrintableSection, summarizePrint } from "./print";
 
 const doc = (text: string): RichTextDocument => ({
   type: "doc",
@@ -68,5 +68,14 @@ describe("planPrint", () => {
       "approved",
     );
     expect(plan).toMatchObject({ sections: [], unapproved: 0 });
+  });
+});
+
+describe("summarizePrint", () => {
+  it("counts what each source would print, using the same rules as planPrint", () => {
+    expect(summarizePrint(sections)).toEqual({
+      approved: { sections: 3, unapproved: 1, newerDraft: 1 },
+      draft: { sections: 4, unapproved: 0, newerDraft: 0 },
+    });
   });
 });

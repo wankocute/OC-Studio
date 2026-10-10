@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  BookOpenText,
   Check,
   CircleDashed,
   Loader2,
@@ -113,6 +114,13 @@ export function EditorHeader({
               {t.status.retry}
             </Button>
           )}
+          {/* Two-way link with the profile; the unsaved-changes guard asks before leaving. */}
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/characters/${characterId}/profile` as Route} title={t.openProfileHint}>
+              <BookOpenText data-icon="inline-start" aria-hidden />
+              {t.openProfile}
+            </Link>
+          </Button>
           <ToggleGroup
             type="single"
             variant="outline"

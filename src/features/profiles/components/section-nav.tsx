@@ -7,6 +7,8 @@ import {
   CircleDashed,
   CircleDot,
   CirclePlus,
+  Loader2,
+  Sparkles,
   Eye,
   EyeOff,
   Layers,
@@ -120,12 +122,15 @@ function SectionMenu({
 export function SectionNav({
   sections,
   statuses,
+  aiBadges = {},
   activeId,
   onSelect,
   commands,
 }: {
   sections: readonly SectionStructureView[];
   statuses: Readonly<Record<string, SectionStatus>>;
+  /** Sections with an AI job running, or a suggestion waiting to be reviewed. */
+  aiBadges?: Readonly<Record<string, "running" | "ready">>;
   activeId: string;
   onSelect: (sectionId: string) => void;
   commands: SectionCommands;
@@ -149,6 +154,11 @@ export function SectionNav({
               <SelectItem key={section.id} value={section.id}>
                 {sectionLabel(section)}
                 {section.isHidden ? ` · ${t.hiddenBadge}` : ""}
+                {aiBadges[section.id] === "running"
+                  ? ` · ${messages.profileAi.job.navRunning}`
+                  : aiBadges[section.id] === "ready"
+                    ? ` · ${messages.profileAi.job.navReady}`
+                    : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -197,7 +207,18 @@ export function SectionNav({
                   <span className="sr-only">
                     {` — ${t.sectionStatus[status]}`}
                     {section.isHidden ? ` — ${t.hiddenBadge}` : ""}
+                    {aiBadges[section.id] === "running"
+                      ? ` — ${messages.profileAi.job.navRunning}`
+                      : aiBadges[section.id] === "ready"
+                        ? ` — ${messages.profileAi.job.navReady}`
+                        : ""}
                   </span>
+                  {aiBadges[section.id] === "running" && (
+                    <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin" aria-hidden />
+                  )}
+                  {aiBadges[section.id] === "ready" && (
+                    <Sparkles className="ml-auto size-3.5 shrink-0 text-primary" aria-hidden />
+                  )}
                   {section.isHidden && <EyeOff className="ml-auto size-3.5 shrink-0" aria-hidden />}
                 </button>
                 <SectionMenu

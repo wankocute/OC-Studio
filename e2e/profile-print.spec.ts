@@ -268,3 +268,34 @@ test("opens the print view from the profile, blocking drafts that are not saved"
   await page.getByRole("radio", { name: "Xem trước" }).click();
   await expect(page.getByRole("button", { name: "In / Lưu PDF" })).toBeVisible();
 });
+
+test("prints straight from the character page, with the same choices", async ({
+  page,
+  context,
+}, testInfo) => {
+  const id = await seed(testInfo.project.name);
+  await page.goto(`/characters/${id}`);
+  await expect(async () => {
+    await page.getByRole("button", { name: "In / Lưu PDF" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  const dialog = page.getByRole("dialog", { name: "In hoặc lưu PDF" });
+  await expect(dialog.getByRole("radio", { name: "Bản đã duyệt" })).toBeChecked();
+  await expect(dialog).toContainText("3 mục sẽ được in.");
+  await expect(dialog).toContainText("2 mục chưa được duyệt sẽ bị bỏ qua");
+  const [printPage] = await Promise.all([
+    context.waitForEvent("page"),
+    dialog.getByRole("link", { name: "Mở bản in" }).click(),
+  ]);
+  await expect(printPage.getByTestId("print-source")).toHaveText("Bản đã duyệt");
+  await expect(documentOf(printPage)).not.toContainText("NHÁP MỚI");
+
+  // A character without a profile says so before opening anything.
+  const bare = await insertCharacter(uniqueName("Chưa hồ sơ", testInfo.project.name));
+  await page.goto(`/characters/${bare}`);
+  await expect(async () => {
+    await page.getByRole("button", { name: "In / Lưu PDF" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(page.getByRole("dialog")).toContainText("Nhân vật này chưa có hồ sơ chi tiết.");
+});

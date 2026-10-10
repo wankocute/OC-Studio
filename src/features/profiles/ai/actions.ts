@@ -4,14 +4,14 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { getServerEnv, InvalidServerEnvError } from "@/lib/env";
 import { fail, failFromError, invalidInput, ok, type ActionResult } from "@/lib/action-result";
-import { messages } from "@/i18n";
 import { sectionLabel } from "../view";
 import { createProfileRepository } from "../server/profile-repository";
 import { loadFactSources } from "../server/fact-source-loader";
 import { AI_LIMITS } from "./constants";
 import { AiError } from "./provider";
-import { aiConfiguration, createConfiguredWriter } from "./configuration";
-import { sectionAi } from "./service";
+import { aiConfiguration, createConfiguredWriter, resolveModel } from "./configuration";
+import { describeAiError } from "./describe-error";
+import { type AiJobView, sectionAi } from "./service";
 
 async function load(sectionId: string) {
   const repository = createProfileRepository(getDb());
@@ -31,16 +31,7 @@ function errorResult(error: unknown) {
   if (error instanceof InvalidServerEnvError)
     return fail({ code: "invalid_input", message: error.message });
   if (error instanceof AiError)
-    return fail({
-      code: "invalid_input",
-      message: [
-        messages.profileAi.errors[error.code],
-        error.diagnostic &&
-          `Google: HTTP ${error.diagnostic.httpStatus}; ${error.diagnostic.status ?? ""}; ${error.diagnostic.reasons.join(", ")}; ${error.diagnostic.message ?? ""}`,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    });
+    return fail({ code: "invalid_input", message: describeAiError(error) });
   return failFromError(error);
 }
 export async function previewSectionAiAction(
@@ -65,27 +56,65 @@ export async function previewSectionAiAction(
     return errorResult(error);
   }
 }
-export async function generateSectionAiAction(
-  input: unknown,
-): Promise<ActionResult<Awaited<ReturnType<typeof sectionAi.generate>>>> {
+/**
+ * Start writing in the background and return the job at once. The facts sent are the ones frozen
+ * in the preview; a section that already has a job in progress gets that job back.
+ */
+export async function startSectionAiAction(input: unknown): Promise<ActionResult<AiJobView>> {
   const parsed = z
-    .object({ token: z.uuid(), instruction: z.string().max(AI_LIMITS.instructionChars) })
+    .object({
+      token: z.uuid(),
+      instruction: z.string().max(AI_LIMITS.instructionChars),
+      // Only compared with the server's allowlist; never passed on unchecked.
+      model: z.string().max(100).optional(),
+    })
     .safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
     const env = getServerEnv();
+    const model = resolveModel(env, parsed.data.model);
+    const option = aiConfiguration(env).models.find((candidate) => candidate.id === model)!;
     return ok(
-      await sectionAi.generate(
+      await sectionAi.start(
         parsed.data.token,
         parsed.data.instruction,
-        createConfiguredWriter(env),
+        createConfiguredWriter(env, fetch, model),
         load,
+        { timeoutMs: env.AI_REQUEST_TIMEOUT_MS, model: { id: model, label: option.label } },
       ),
     );
   } catch (error) {
     return errorResult(error);
   }
 }
+
+/**
+ * Current state of jobs, read from server memory only (the provider is never called here).
+ * `null` = the server no longer knows the job (restart or expiry).
+ */
+export async function getSectionAiJobsAction(
+  ids: unknown,
+): Promise<ActionResult<(AiJobView | null)[]>> {
+  const parsed = z.array(z.uuid()).max(AI_LIMITS.jobs).safeParse(ids);
+  if (!parsed.success) return invalidInput(parsed.error);
+  return ok(parsed.data.map((id) => sectionAi.job(id)));
+}
+
+export async function cancelSectionAiJobAction(
+  id: unknown,
+): Promise<ActionResult<AiJobView | null>> {
+  const parsed = z.uuid().safeParse(id);
+  if (!parsed.success) return invalidInput(parsed.error);
+  return ok(sectionAi.cancel(parsed.data));
+}
+
+export async function dismissSectionAiJobAction(id: unknown): Promise<ActionResult> {
+  const parsed = z.uuid().safeParse(id);
+  if (!parsed.success) return invalidInput(parsed.error);
+  sectionAi.dismiss(parsed.data);
+  return ok();
+}
+
 export async function applySectionAiAction(
   input: unknown,
 ): Promise<ActionResult<Awaited<ReturnType<typeof sectionAi.apply>>>> {

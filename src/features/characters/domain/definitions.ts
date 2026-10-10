@@ -102,8 +102,15 @@ export type BuiltinGroupId = (typeof BUILTIN_GROUPS)[number]["id"];
 export const BUILTIN_FIELDS = [
   // Identity
   field("identity.full_name", "identity", shortText),
-  field("identity.given_name", "identity", shortText),
-  field("identity.family_name", "identity", { ...shortText, allowExplicitNone: true }),
+  // Retired from the editor (TASK 10): "Họ tên đầy đủ" is the one name field, because splitting
+  // and re-joining names depends on naming order. Stored values stay valid and visible read-only;
+  // nothing is merged into identity.full_name automatically. Never reuse these keys.
+  field("identity.given_name", "identity", { ...shortText, deprecated: true }),
+  field("identity.family_name", "identity", {
+    ...shortText,
+    allowExplicitNone: true,
+    deprecated: true,
+  }),
   field("identity.common_name", "identity", shortText),
   field("identity.nicknames", "identity", textList),
   field("identity.other_names", "identity", {
@@ -146,6 +153,9 @@ export const BUILTIN_FIELDS = [
   field("appearance.weight", "appearance.body", { kind: "measure", units: MASS_UNITS, min: 0 }),
   field("appearance.build", "appearance.body", shortText),
   field("appearance.body_proportions", "appearance.body", longText),
+  // Free-form body details no other field covers, anatomy included. Sensitive by default: sent to
+  // AI only when the user allows it for that one request. Manual input is never filtered.
+  field("appearance.body_details", "appearance.body", { ...longText, sensitivity: "sensitive" }),
   field("appearance.skin_tone", "appearance.skin", shortText),
   field("appearance.skin_texture", "appearance.skin", shortText),
   field("appearance.face_shape", "appearance.face", shortText),

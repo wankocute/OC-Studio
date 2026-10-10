@@ -18,9 +18,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   DEFAULT_PRINT_SOURCE,
   PRINT_SOURCES,
-  planPrint,
-  type PrintableSection,
   type PrintSource,
+  type PrintSummary,
 } from "@/features/profiles/print";
 import { messages } from "@/i18n";
 
@@ -33,25 +32,34 @@ const t = messages.profiles.print;
  */
 export function PrintDialog({
   characterId,
-  sections,
+  summaries,
   unsaved,
+  triggerClassName,
 }: {
   characterId: string;
   /** Sections as stored: saved drafts and approved content. */
-  sections: readonly PrintableSection[];
+  summaries: Record<PrintSource, PrintSummary> | null;
   /** Sections whose edits are not saved yet. */
   unsaved: number;
+  triggerClassName?: string;
 }) {
   const prefix = useId();
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState<PrintSource>(DEFAULT_PRINT_SOURCE);
-  const plan = planPrint(sections, source);
+  // `null`: the character has no profile yet.
+  const plan = summaries?.[source] ?? { sections: 0, unapproved: 0, newerDraft: 0 };
   const blocked = source === "draft" && unsaved > 0;
   const href = `/characters/${characterId}/profile/print?source=${source}` as Route;
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={triggerClassName}
+        onClick={() => setOpen(true)}
+      >
         <Printer data-icon="inline-start" aria-hidden />
         {t.open}
       </Button>
@@ -91,11 +99,13 @@ export function PrintDialog({
             ) : (
               <>
                 <p>
-                  {plan.sections.length > 0
-                    ? t.sectionsCount(plan.sections.length)
-                    : source === "approved"
-                      ? t.emptyApproved
-                      : t.emptyDraft}
+                  {!summaries
+                    ? t.noProfile
+                    : plan.sections > 0
+                      ? t.sectionsCount(plan.sections)
+                      : source === "approved"
+                        ? t.emptyApproved
+                        : t.emptyDraft}
                 </p>
                 {plan.unapproved > 0 && (
                   <p className="text-muted-foreground">{t.unapproved(plan.unapproved)}</p>

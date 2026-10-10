@@ -35,7 +35,7 @@ import { HistorySheet } from "./history-sheet";
 import { RichTextEditor } from "./rich-text-editor";
 import { RichTextView } from "./rich-text-view";
 import { SectionStatusIcon } from "./section-nav";
-import { SectionAi } from "./section-ai";
+import { SectionAi, type SectionAiControl } from "./section-ai";
 
 const t = messages.profiles;
 const dateFormat = new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" });
@@ -200,6 +200,7 @@ export function SectionPanel({
   idPrefix,
   dispatch,
   onEditSources,
+  ai,
 }: {
   characterId: string;
   section: SectionStructureView;
@@ -208,6 +209,7 @@ export function SectionPanel({
   idPrefix: string;
   dispatch: (action: WorkspaceAction) => void;
   onEditSources: () => void;
+  ai: SectionAiControl;
 }) {
   const [version, setVersion] = useState<Version>("draft");
   const label = sectionLabel(section);
@@ -319,7 +321,7 @@ export function SectionPanel({
 
       <div className="flex flex-wrap items-start gap-3 border-t pt-4">
         <ApproveButton sectionId={section.id} draft={draft} onApproved={dispatch} />
-        <SectionAi sectionId={section.id} draft={draft} onApplied={onRestored} />
+        <SectionAi sectionId={section.id} draft={draft} onApplied={onRestored} ai={ai} />
         <HistorySheet
           sectionId={section.id}
           sectionTitle={label}

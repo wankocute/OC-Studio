@@ -50,3 +50,20 @@ export function planPrint(sections: readonly PrintableSection[], source: PrintSo
   }
   return plan;
 }
+
+/** Counts only (no content), so a page can describe a print without shipping the text. */
+export type PrintSummary = { sections: number; unapproved: number; newerDraft: number };
+
+export function summarizePrint(
+  sections: readonly PrintableSection[],
+): Record<PrintSource, PrintSummary> {
+  const summary = (source: PrintSource): PrintSummary => {
+    const plan = planPrint(sections, source);
+    return {
+      sections: plan.sections.length,
+      unapproved: plan.unapproved,
+      newerDraft: plan.newerDraft,
+    };
+  };
+  return { approved: summary("approved"), draft: summary("draft") };
+}

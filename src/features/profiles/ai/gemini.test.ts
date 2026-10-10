@@ -2,19 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 import { parseServerEnv } from "@/lib/env";
 import { createGeminiWriter, GEMINI_FREE_MODEL } from "./gemini";
 import { aiConfiguration, createConfiguredWriter } from "./configuration";
-import { parseAiOutput } from "./provider";
+import { AiError, parseAiOutput } from "./provider";
 import { AI_LIMITS } from "./constants";
 
 const signal = () => new AbortController().signal;
 const response = (text: string, finishReason = "STOP") =>
   Response.json({ candidates: [{ finishReason, content: { parts: [{ text }] } }] });
-const configured = () =>
-  parseServerEnv({
-    GEMINI_API_KEY: "test-secret",
-    GEMINI_MODEL: GEMINI_FREE_MODEL,
-    OPENAI_API_KEY: "other-secret",
-    OPENAI_MODEL: "other-model",
-  });
+const rawEnv = {
+  GEMINI_API_KEY: "test-secret",
+  GEMINI_MODEL: GEMINI_FREE_MODEL,
+  OPENAI_API_KEY: "other-secret",
+  OPENAI_MODEL: "other-model",
+};
+const configured = () => parseServerEnv(rawEnv);
 
 describe("Gemini adapter and provider selection", () => {
   it("identifies each missing or unsupported configuration variable without exposing credentials", () => {
@@ -60,10 +60,11 @@ describe("Gemini adapter and provider selection", () => {
   it("defaults to Gemini despite OpenAI credentials; matches preview facts and keeps key out of URL/body", async () => {
     const env = configured();
     expect(env.AI_PROVIDER).toBe("gemini");
-    expect(aiConfiguration(env)).toEqual({
+    expect(aiConfiguration(env)).toMatchObject({
       provider: "gemini",
       configured: true,
       configurationIssues: [],
+      defaultModel: GEMINI_FREE_MODEL,
     });
     const request = vi
       .fn<typeof fetch>()
@@ -127,7 +128,7 @@ describe("Gemini adapter and provider selection", () => {
     expect(request).not.toHaveBeenCalled();
   });
   it("only calls OpenAI when explicitly selected", async () => {
-    const env = parseServerEnv({ ...configured(), AI_PROVIDER: "openai" });
+    const env = parseServerEnv({ ...rawEnv, AI_PROVIDER: "openai" });
     const request = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         status: "completed",
@@ -139,27 +140,33 @@ describe("Gemini adapter and provider selection", () => {
     await createConfiguredWriter(env, request).generate("{}", "", signal());
     expect(request.mock.calls[0]![0]).toBe("https://api.openai.com/v1/responses");
   });
-  it("rejects blocked/truncated/empty/malformed and oversized responses", async () => {
-    for (const result of [
-      Response.json({ promptFeedback: { blockReason: "SAFETY" } }),
-      response('{"paragraphs":["partial"]}', "MAX_TOKENS"),
-      response("not JSON"),
-      new Response("invalid outer JSON"),
-      response('{"paragraphs":[]}'),
-      response(JSON.stringify({ paragraphs: ["a".repeat(AI_LIMITS.outputChars + 1)] })),
-      new Response("a".repeat(AI_LIMITS.responseBytes + 1)),
-    ]) {
+  it("tells blocked, truncated, empty and malformed responses apart, without retrying", async () => {
+    const cases: [Response, string, string?][] = [
+      // The prompt itself was blocked: no candidates are returned.
+      [Response.json({ promptFeedback: { blockReason: "SAFETY" } }), "blocked", "SAFETY"],
+      [Response.json({ promptFeedback: { blockReason: "PROHIBITED_CONTENT" } }), "blocked"],
+      [response('{"paragraphs":["x"]}', "PROHIBITED_CONTENT"), "blocked", "PROHIBITED_CONTENT"],
+      [response('{"paragraphs":["x"]}', "SPII"), "blocked"],
+      [response('{"paragraphs":["x"]}', "RECITATION"), "blocked"],
+      [response('{"paragraphs":["partial"]}', "MAX_TOKENS"), "outputTruncated"],
+      [Response.json({ candidates: [] }), "outputEmpty"],
+      [response(""), "outputEmpty"],
+      [response('{"paragraphs":["x"]}', "MALFORMED_RESPONSE"), "output", "MALFORMED_RESPONSE"],
+      [response("not JSON"), "output"],
+      [new Response("invalid outer JSON"), "output"],
+      [response('{"paragraphs":[]}'), "output"],
+      [response(JSON.stringify({ paragraphs: ["a".repeat(AI_LIMITS.outputChars + 1)] })), "output"],
+      [new Response("a".repeat(AI_LIMITS.responseBytes + 1)), "output"],
+    ];
+    for (const [result, code, status] of cases) {
       const request = vi.fn<typeof fetch>().mockResolvedValue(result);
-      await expect(
-        (async () =>
-          parseAiOutput(
-            await createGeminiWriter("key", GEMINI_FREE_MODEL, request).generate(
-              "{}",
-              "",
-              signal(),
-            ),
-          ))(),
-      ).rejects.toThrow("output");
+      const error = await (async () =>
+        parseAiOutput(
+          await createGeminiWriter("key", GEMINI_FREE_MODEL, request).generate("{}", "", signal()),
+        ))().catch((caught: unknown) => caught);
+      expect(error, code).toBeInstanceOf(AiError);
+      expect((error as AiError).code).toBe(code);
+      if (status) expect((error as AiError).diagnostic?.status).toBe(status);
       expect(request).toHaveBeenCalledTimes(1);
     }
   });

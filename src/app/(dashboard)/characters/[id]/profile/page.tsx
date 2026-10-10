@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getDb } from "@/db";
 import { isRepositoryError } from "@/db/repository-errors";
 import { fingerprint } from "@/features/characters/domain";
+import { sectionAi } from "@/features/profiles/ai/service";
 import { ProfileWorkspace } from "@/features/profiles/components/profile-workspace";
 import { StartProfileButton } from "@/features/profiles/components/start-profile";
 import { loadFactSources } from "@/features/profiles/server/fact-source-loader";
@@ -84,6 +85,8 @@ async function ProfileLoader({
       profile={view}
       sourceGroups={sources.groups}
       initialSection={section}
+      // In-memory jobs of this server process: lets the page show work still running or done.
+      initialAiJobs={sectionAi.jobsForSections(profile.sections.map((item) => item.id))}
     />
   );
 }

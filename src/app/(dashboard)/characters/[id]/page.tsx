@@ -32,6 +32,7 @@ import { createCollectionRepository } from "@/features/library/server/collection
 import { createMediaRepository } from "@/features/library/server/media-repository";
 import { createTagRepository } from "@/features/library/server/tag-repository";
 import { AvatarEditor, ReferenceGallery } from "@/features/media/components/character-images";
+import { PrintDialog } from "@/features/profiles/components/print-dialog";
 import { loadProfileProgress } from "@/features/profiles/server/profile-progress";
 import { messages } from "@/i18n";
 import { formatDateTime } from "@/lib/format";
@@ -132,6 +133,7 @@ async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]
               revision={record.revision}
               initial={toBasicInfoForm(facts)}
             />
+            <PrintDialog characterId={record.id} summaries={profile?.print ?? null} unsaved={0} />
             <DeleteCharacterButton
               characterId={record.id}
               revision={record.revision}

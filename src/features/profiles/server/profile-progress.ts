@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Database } from "@/db";
+import { summarizePrint } from "@/features/profiles/print";
 import { profileProgress } from "@/features/profiles/view";
 
 import { loadFactSources } from "./fact-source-loader";
@@ -16,5 +17,7 @@ export async function loadProfileProgress(db: Database, characterId: string) {
     loadFactSources(db, characterId),
     createProfileRepository(db).getPrimary(characterId),
   ]);
-  return profile ? profileProgress(toProfileView(profile, sources)) : null;
+  if (!profile) return null;
+  const view = toProfileView(profile, sources);
+  return { ...profileProgress(view), print: summarizePrint(view.sections) };
 }

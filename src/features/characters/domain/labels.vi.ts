@@ -59,8 +59,8 @@ export const factLabelsVi: FactLabels = {
   },
   fields: {
     "identity.full_name": "Họ tên đầy đủ",
-    "identity.given_name": "Tên",
-    "identity.family_name": "Họ",
+    "identity.given_name": "Tên (dữ liệu cũ)",
+    "identity.family_name": "Họ (dữ liệu cũ)",
     "identity.common_name": "Tên thường gọi",
     "identity.nicknames": "Biệt danh",
     "identity.other_names": "Tên khác",
@@ -81,6 +81,7 @@ export const factLabelsVi: FactLabels = {
     "appearance.weight": "Cân nặng",
     "appearance.build": "Vóc dáng",
     "appearance.body_proportions": "Tỉ lệ cơ thể",
+    "appearance.body_details": "Chi tiết đặc điểm cơ thể",
     "appearance.skin_tone": "Màu da",
     "appearance.skin_texture": "Kết cấu da",
     "appearance.face_shape": "Hình dáng gương mặt",

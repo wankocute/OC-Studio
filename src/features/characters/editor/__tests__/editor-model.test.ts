@@ -58,9 +58,11 @@ describe("layout", () => {
     ]);
     expect(groups[1]!.subgroups.map((group) => group.id)).toContain("appearance.hair");
     const fields = groups.flatMap(fieldsOfGroup);
-    // 86 active built-in fields plus the deprecated v1 `identity.gender`.
-    expect(fields.filter((field) => !field.deprecated)).toHaveLength(86);
+    // 85 active built-in fields plus three retired ones (v1 gender; given/family name, TASK 10).
+    expect(fields.filter((field) => !field.deprecated)).toHaveLength(85);
     expect(fields.filter((field) => field.deprecated).map((field) => field.key)).toEqual([
+      "identity.given_name",
+      "identity.family_name",
       "identity.gender",
     ]);
   });
@@ -71,16 +73,38 @@ describe("layout", () => {
       library: EMPTY_LIBRARY,
       deprecatedLibraryKeys: new Set(),
     });
-    const facts = sheet({ "identity.given_name": { state: "specified", value: "Vân" } });
+    const facts = sheet({ "identity.apparent_age": { state: "specified", value: "20" } });
     const fields = groups.flatMap(fieldsOfGroup);
     const input = { facts, library: EMPTY_LIBRARY, addedLibraryKeys: [] };
     const basic = fields.filter(
       (field) => visibilityOf(field, { ...input, mode: "basic" }) === "visible",
     );
     expect(basic).toHaveLength(31);
-    const givenName = fields.find((field) => field.key === "identity.given_name")!;
-    expect(visibilityOf(givenName, { ...input, mode: "basic" })).toBe("hidden_with_data");
-    expect(visibilityOf(givenName, { ...input, mode: "advanced" })).toBe("visible");
+    const apparentAge = fields.find((field) => field.key === "identity.apparent_age")!;
+    expect(visibilityOf(apparentAge, { ...input, mode: "basic" })).toBe("hidden_with_data");
+    expect(visibilityOf(apparentAge, { ...input, mode: "advanced" })).toBe("visible");
+  });
+
+  it("no longer offers given/family name, but keeps stored values (TASK 10)", () => {
+    const groups = buildEditorGroups({
+      custom: undefined,
+      library: EMPTY_LIBRARY,
+      deprecatedLibraryKeys: new Set(),
+    });
+    const fields = groups.flatMap(fieldsOfGroup);
+    const empty = { facts: sheet({}), library: EMPTY_LIBRARY, addedLibraryKeys: [] };
+    for (const key of ["identity.given_name", "identity.family_name"]) {
+      const field = fields.find((candidate) => candidate.key === key)!;
+      expect(field.deprecated).toBe(true);
+      for (const mode of ["basic", "advanced"] as const) {
+        expect(visibilityOf(field, { ...empty, mode })).toBe("hidden");
+      }
+      // Stored data is still reported, so the editor shows it read-only instead of losing it.
+      const stored = { ...empty, facts: sheet({ [key]: { state: "specified", value: "Vân" } }) };
+      expect(visibilityOf(field, { ...stored, mode: "advanced" })).toBe("hidden_with_data");
+    }
+    const fullName = fields.find((field) => field.key === "identity.full_name")!;
+    expect(visibilityOf(fullName, { ...empty, mode: "basic" })).toBe("visible");
   });
 });
 

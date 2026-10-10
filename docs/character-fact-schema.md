@@ -167,7 +167,7 @@ Tập trung trong `LIMITS` (`constants.ts`); schema, định nghĩa và test cù
 
 ## 7. Danh sách nhóm và trường mặc định
 
-Thống kê: **9 nhóm, 6 nhóm con, 87 định nghĩa trường** (86 đang dùng + 1 deprecated), **35 trường con**.
+Thống kê: **9 nhóm, 6 nhóm con, 88 định nghĩa trường** (85 đang dùng + 3 deprecated), **35 trường con**.
 
 - Cột **SL**: _Một_ = một giá trị, _Nhiều_ = danh sách có id ổn định (khi `specified` phải có ≥ 1 phần tử).
 - Cột **Không có**: cho phép `explicit_none` (mục 4.1). Mọi trường đều nhận `specified` / `unspecified` / `not_applicable`.
@@ -177,26 +177,26 @@ Thống kê: **9 nhóm, 6 nhóm con, 87 định nghĩa trường** (86 đang dù
 
 ### Định danh — `identity`
 
-| Khóa                               | Nhãn                   | Kiểu            | SL    | Không có | Nhạy cảm | Cơ bản | Ràng buộc                                                                                                 |
-| ---------------------------------- | ---------------------- | --------------- | ----- | -------- | -------- | ------ | --------------------------------------------------------------------------------------------------------- |
-| `identity.full_name`               | Họ tên đầy đủ          | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
-| `identity.given_name`              | Tên                    | `short_text`    | Một   |          |          |        | ≤ 300 ký tự                                                                                               |
-| `identity.family_name`             | Họ                     | `short_text`    | Một   | ✓        |          |        | ≤ 300 ký tự                                                                                               |
-| `identity.common_name`             | Tên thường gọi         | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
-| `identity.nicknames`               | Biệt danh              | `text_list`     | Nhiều | ✓        |          | ✓      | mỗi mục ≤ 300 ký tự, ≤ 200 mục                                                                            |
-| `identity.other_names`             | Tên khác               | `object_list`   | Nhiều | ✓        |          |        | ≤ 200 phần tử, mỗi phần tử ≥ 1 dữ kiện                                                                    |
-| ↳ `name`                           | Tên                    | `short_text`    | Một   |          |          |        | **bắt buộc trong phần tử**; ≤ 300 ký tự                                                                   |
-| ↳ `context`                        | Bối cảnh sử dụng       | `short_text`    | Một   |          |          |        | ≤ 300 ký tự                                                                                               |
-| `identity.age`                     | Tuổi                   | `measure`       | Một   |          |          | ✓      | đơn vị: `years`, `months`; ≥ 0; cho phép `approximate`                                                    |
-| `identity.apparent_age`            | Tuổi trông như         | `short_text`    | Một   |          |          |        | ≤ 300 ký tự                                                                                               |
-| `identity.birth_date`              | Ngày sinh              | `date`          | Một   |          |          | ✓      | ngày từng phần hoặc văn bản                                                                               |
-| `identity.gender` **(deprecated)** | Giới tính (dữ liệu cũ) | `single_select` | Một   |          |          |        | lựa chọn: `female` (Nữ), `male` (Nam), `non_binary` (Phi nhị nguyên); cho phép `other`                    |
-| `identity.gender_identity`         | Bản dạng giới          | `single_select` | Một   |          |          | ✓      | lựa chọn: `woman` (Nữ), `man` (Nam), `non_binary` (Phi nhị nguyên), `agender` (Vô giới); cho phép `other` |
-| `identity.biological_sex`          | Giới tính sinh học     | `single_select` | Một   |          | ✓        |        | lựa chọn: `female` (Nữ), `male` (Nam), `intersex` (Liên giới tính); cho phép `other`                      |
-| `identity.pronouns`                | Đại từ xưng hô         | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
-| `identity.nationality`             | Quốc tịch              | `short_text`    | Một   | ✓        |          |        | ≤ 300 ký tự                                                                                               |
-| `identity.species`                 | Chủng loài             | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
-| `identity.languages`               | Ngôn ngữ sử dụng       | `text_list`     | Nhiều | ✓        |          |        | mỗi mục ≤ 300 ký tự, ≤ 200 mục                                                                            |
+| Khóa                                    | Nhãn                   | Kiểu            | SL    | Không có | Nhạy cảm | Cơ bản | Ràng buộc                                                                                                 |
+| --------------------------------------- | ---------------------- | --------------- | ----- | -------- | -------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| `identity.full_name`                    | Họ tên đầy đủ          | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
+| `identity.given_name` **(deprecated)**  | Tên (dữ liệu cũ)       | `short_text`    | Một   |          |          |        | ≤ 300 ký tự                                                                                               |
+| `identity.family_name` **(deprecated)** | Họ (dữ liệu cũ)        | `short_text`    | Một   | ✓        |          |        | ≤ 300 ký tự                                                                                               |
+| `identity.common_name`                  | Tên thường gọi         | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
+| `identity.nicknames`                    | Biệt danh              | `text_list`     | Nhiều | ✓        |          | ✓      | mỗi mục ≤ 300 ký tự, ≤ 200 mục                                                                            |
+| `identity.other_names`                  | Tên khác               | `object_list`   | Nhiều | ✓        |          |        | ≤ 200 phần tử, mỗi phần tử ≥ 1 dữ kiện                                                                    |
+| ↳ `name`                                | Tên                    | `short_text`    | Một   |          |          |        | **bắt buộc trong phần tử**; ≤ 300 ký tự                                                                   |
+| ↳ `context`                             | Bối cảnh sử dụng       | `short_text`    | Một   |          |          |        | ≤ 300 ký tự                                                                                               |
+| `identity.age`                          | Tuổi                   | `measure`       | Một   |          |          | ✓      | đơn vị: `years`, `months`; ≥ 0; cho phép `approximate`                                                    |
+| `identity.apparent_age`                 | Tuổi trông như         | `short_text`    | Một   |          |          |        | ≤ 300 ký tự                                                                                               |
+| `identity.birth_date`                   | Ngày sinh              | `date`          | Một   |          |          | ✓      | ngày từng phần hoặc văn bản                                                                               |
+| `identity.gender` **(deprecated)**      | Giới tính (dữ liệu cũ) | `single_select` | Một   |          |          |        | lựa chọn: `female` (Nữ), `male` (Nam), `non_binary` (Phi nhị nguyên); cho phép `other`                    |
+| `identity.gender_identity`              | Bản dạng giới          | `single_select` | Một   |          |          | ✓      | lựa chọn: `woman` (Nữ), `man` (Nam), `non_binary` (Phi nhị nguyên), `agender` (Vô giới); cho phép `other` |
+| `identity.biological_sex`               | Giới tính sinh học     | `single_select` | Một   |          | ✓        |        | lựa chọn: `female` (Nữ), `male` (Nam), `intersex` (Liên giới tính); cho phép `other`                      |
+| `identity.pronouns`                     | Đại từ xưng hô         | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
+| `identity.nationality`                  | Quốc tịch              | `short_text`    | Một   | ✓        |          |        | ≤ 300 ký tự                                                                                               |
+| `identity.species`                      | Chủng loài             | `short_text`    | Một   |          |          | ✓      | ≤ 300 ký tự                                                                                               |
+| `identity.languages`                    | Ngôn ngữ sử dụng       | `text_list`     | Nhiều | ✓        |          |        | mỗi mục ≤ 300 ký tự, ≤ 200 mục                                                                            |
 
 ### Ngoại hình — `appearance`
 
@@ -207,12 +207,13 @@ Thống kê: **9 nhóm, 6 nhóm con, 87 định nghĩa trường** (86 đang dù
 
 #### Vóc dáng — `appearance.body`
 
-| Khóa                          | Nhãn         | Kiểu         | SL  | Không có | Nhạy cảm | Cơ bản | Ràng buộc                                                  |
-| ----------------------------- | ------------ | ------------ | --- | -------- | -------- | ------ | ---------------------------------------------------------- |
-| `appearance.height`           | Chiều cao    | `measure`    | Một |          |          | ✓      | đơn vị: `cm`, `m`, `in`, `ft`; ≥ 0; cho phép `approximate` |
-| `appearance.weight`           | Cân nặng     | `measure`    | Một |          |          |        | đơn vị: `kg`, `lb`; ≥ 0; cho phép `approximate`            |
-| `appearance.build`            | Vóc dáng     | `short_text` | Một |          |          |        | ≤ 300 ký tự                                                |
-| `appearance.body_proportions` | Tỉ lệ cơ thể | `long_text`  | Một |          |          |        | ≤ 20.000 ký tự                                             |
+| Khóa                          | Nhãn                     | Kiểu         | SL  | Không có | Nhạy cảm | Cơ bản | Ràng buộc                                                                            |
+| ----------------------------- | ------------------------ | ------------ | --- | -------- | -------- | ------ | ------------------------------------------------------------------------------------ |
+| `appearance.height`           | Chiều cao                | `measure`    | Một |          |          | ✓      | đơn vị: `cm`, `m`, `in`, `ft`; ≥ 0; cho phép `approximate`                           |
+| `appearance.weight`           | Cân nặng                 | `measure`    | Một |          |          |        | đơn vị: `kg`, `lb`; ≥ 0; cho phép `approximate`                                      |
+| `appearance.build`            | Vóc dáng                 | `short_text` | Một |          |          |        | ≤ 300 ký tự                                                                          |
+| `appearance.body_proportions` | Tỉ lệ cơ thể             | `long_text`  | Một |          |          |        | ≤ 20.000 ký tự                                                                       |
+| `appearance.body_details`     | Chi tiết đặc điểm cơ thể | `long_text`  | Một |          | ✓        |        | ≤ 20.000 ký tự; ghi tự do mọi đặc điểm cơ thể chưa có trường riêng (kể cả giải phẫu) |
 
 #### Làn da — `appearance.skin`
 
@@ -376,6 +377,8 @@ Thống kê: **9 nhóm, 6 nhóm con, 87 định nghĩa trường** (86 đang dù
 
 - `identity.gender_identity` (Bản dạng giới) và `identity.biological_sex` (Giới tính sinh học) là hai trường **độc lập**, đều tùy chọn, đều cho phép giá trị khác (`other`) và `not_applicable`.
 - Không suy ra trường này từ trường kia, cũng không suy ra `identity.pronouns`.
+- `identity.given_name` / `identity.family_name` **deprecated** từ TASK 10: editor chỉ dùng `identity.full_name` (tách/ghép họ tên phụ thuộc thứ tự tên theo văn hóa nên không tự ghép). Giá trị đã lưu vẫn hợp lệ, hiện chỉ-đọc trong nhóm Định danh (có nút xóa) để người dùng tự chuyển sang "Họ tên đầy đủ"; không đổi `schemaVersion` vì mọi dữ liệu v3 vẫn hợp lệ. Khóa không bao giờ được dùng lại.
+- `appearance.body_details` (TASK 10) mặc định **nhạy cảm**: chỉ gửi cho AI khi người dùng cho phép trong lần tạo đó. Nhập/lưu thủ công không qua bộ lọc hay kiểm duyệt nào; nhà cung cấp AI từ chối chỉ ảnh hưởng lần tạo bằng AI.
 - `identity.gender` (v1) là trường **deprecated**: dữ liệu cũ vẫn hợp lệ và được giữ nguyên; editor không cho nhập mới; khóa này không bao giờ được dùng lại với nghĩa khác. Người dùng tự chuyển giá trị sang một trong hai trường mới (migration không tự đoán).
 
 ## 8. Tham chiếu nhân vật và quan hệ (Q4, Q5)

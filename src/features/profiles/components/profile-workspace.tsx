@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useReducer, useState, useTransition } from "react";
+import { useCallback, useId, useReducer, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -8,7 +8,9 @@ import {
   reorderSectionsAction,
   updateSectionAction,
 } from "@/features/profiles/actions";
+import type { AiJobView } from "@/features/profiles/ai/service";
 import type { SourceGroupOption } from "@/features/profiles/fact-sources";
+import { summarizePrint } from "@/features/profiles/print";
 import {
   defaultSectionLabel,
   type ProfileStructureView,
@@ -33,6 +35,7 @@ import { ProfilePreview } from "./profile-preview";
 import { AddSectionDialog, RenameSectionDialog, SourcesDialog } from "./section-dialogs";
 import { SectionNav } from "./section-nav";
 import { SectionPanel } from "./section-panel";
+import { isActiveJob, useAiJobs } from "./use-ai-jobs";
 import { useSectionAutosave } from "./use-section-autosave";
 
 const t = messages.profiles;
@@ -53,11 +56,14 @@ export function ProfileWorkspace({
   profile,
   sourceGroups,
   initialSection,
+  initialAiJobs = [],
 }: {
   name: string;
   profile: ProfileView;
   sourceGroups: SourceGroupOption[];
   initialSection?: string;
+  /** AI jobs the server still knows for these sections (restored after leaving the page). */
+  initialAiJobs?: AiJobView[];
 }) {
   const idPrefix = useId();
   const [state, dispatch] = useReducer(workspaceReducer, profile, (value) =>
@@ -68,6 +74,28 @@ export function ProfileWorkspace({
   const [busy, startStructure] = useTransition();
   const isClient = useIsClient();
   const { saveNow } = useSectionAutosave(state, dispatch);
+  const [aiOpenFor, setAiOpenFor] = useState<string | null>(null);
+  const openAi = useCallback((sectionId: string) => {
+    dispatch({ type: "select", sectionId });
+    setView("edit");
+    setAiOpenFor(sectionId);
+  }, []);
+  const onAiFinished = useCallback(
+    (job: AiJobView) => {
+      const action = { label: messages.profileAi.job.view, onClick: () => openAi(job.sectionId) };
+      if (job.status === "succeeded")
+        toast.success(messages.profileAi.job.finished(job.title), { action });
+      else if (job.status === "failed")
+        toast.error(messages.profileAi.job.failed(job.title), { action });
+    },
+    [openAi],
+  );
+  const aiJobs = useAiJobs(initialAiJobs, onAiFinished);
+  const aiBadges: Record<string, "running" | "ready"> = {};
+  for (const job of Object.values(aiJobs.jobs)) {
+    if (isActiveJob(job)) aiBadges[job.sectionId] = "running";
+    else if (job.status === "succeeded") aiBadges[job.sectionId] = "ready";
+  }
 
   const unsaved = unsavedSections(state);
   useUnsavedChangesGuard(unsaved.length > 0, t.leaveWarning);
@@ -150,12 +178,14 @@ export function ProfileWorkspace({
         printAction={
           <PrintDialog
             characterId={profile.characterId}
-            sections={state.sections.map((section) => ({
-              ...section,
-              // What the database holds: the print view reads stored content only.
-              draft: state.drafts[section.id]?.saved ?? null,
-              approved: state.drafts[section.id]?.approved ?? null,
-            }))}
+            summaries={summarizePrint(
+              state.sections.map((section) => ({
+                ...section,
+                // What the database holds: the print view reads stored content only.
+                draft: state.drafts[section.id]?.saved ?? null,
+                approved: state.drafts[section.id]?.approved ?? null,
+              })),
+            )}
             unsaved={unsaved.length}
           />
         }
@@ -169,6 +199,7 @@ export function ProfileWorkspace({
             <SectionNav
               sections={state.sections}
               statuses={statuses}
+              aiBadges={aiBadges}
               activeId={state.activeId}
               onSelect={(sectionId) => dispatch({ type: "select", sectionId })}
               commands={commands}
@@ -184,6 +215,13 @@ export function ProfileWorkspace({
               idPrefix={idPrefix}
               dispatch={dispatch}
               onEditSources={() => setDialog({ kind: "sources", section: active })}
+              ai={{
+                job: aiJobs.jobs[active.id],
+                open: aiOpenFor === active.id,
+                setOpen: (open) => setAiOpenFor(open ? active.id : null),
+                track: aiJobs.track,
+                forget: () => aiJobs.forget(active.id),
+              }}
             />
           ) : null}
         </div>

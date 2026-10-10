@@ -124,6 +124,27 @@ function SectionFields({
   return rendered.length > 0 ? <div className="space-y-4">{rendered}</div> : null;
 }
 
+/** Controls a jump lands on: the field's input area, never its state menu. */
+const FOCUSABLE =
+  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select, button:not([disabled]), [role="combobox"], [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
+
+/** Scroll to a field card and focus its first control (or the card's label as a fallback). */
+export function focusField(domId: string) {
+  const card = document.getElementById(domId);
+  if (!card) return;
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  const body = [...card.children].slice(1);
+  const target =
+    body
+      .map((child) =>
+        child.matches(FOCUSABLE)
+          ? (child as HTMLElement)
+          : child.querySelector<HTMLElement>(FOCUSABLE),
+      )
+      .find(Boolean) ?? card.querySelector<HTMLElement>(FOCUSABLE);
+  target?.focus({ preventScroll: true });
+}
+
 export function GroupPanel({
   group,
   mode,

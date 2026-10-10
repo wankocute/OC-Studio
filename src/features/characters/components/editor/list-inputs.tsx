@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeafDraft } from "@/features/characters/editor/drafts";
 import { errorKeys } from "@/features/characters/editor/errors";
 import { newItemId } from "@/features/characters/editor/ids";
@@ -60,15 +61,23 @@ export function ItemControls({
   return (
     <div className="flex shrink-0 items-center">
       {onSensitiveChange && (
-        <Toggle
-          size="sm"
-          aria-label={t.markSensitive(itemLabel)}
-          pressed={sensitive === true}
-          onPressedChange={onSensitiveChange}
-          className="data-[state=on]:text-warning"
-        >
-          <ShieldAlert aria-hidden />
-        </Toggle>
+        // Optional, per item: nothing is sensitive unless the field or the user says so.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Toggle
+              size="sm"
+              aria-label={t.markSensitive(itemLabel)}
+              pressed={sensitive === true}
+              onPressedChange={onSensitiveChange}
+              className="data-[state=on]:text-warning"
+            >
+              <ShieldAlert aria-hidden />
+            </Toggle>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-64">
+            {t.markSensitiveTitle} — {t.sensitiveItemHint}
+          </TooltipContent>
+        </Tooltip>
       )}
       <Button
         type="button"

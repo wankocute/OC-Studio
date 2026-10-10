@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CharacterFacts } from "@/features/characters/domain";
+import {
+  type CharacterFacts,
+  getBuiltinField,
+  isSensitive,
+  parseCharacterFacts,
+} from "@/features/characters/domain";
 import { createAiService, type AiContext } from "./service";
 import { selectSectionFacts, aiSnapshotStale } from "./facts";
 import { AiError, createOpenAiWriter, parseAiOutput, type SectionWriter } from "./provider";
@@ -224,5 +229,213 @@ describe("section AI", () => {
       ),
     ).rejects.toThrow("rateLimit");
     expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("section AI background jobs", () => {
+  const ok = { paragraphs: ["An sinh tại Huế."] };
+
+  it("returns a job at once and finishes it in the background", async () => {
+    const service = createAiService();
+    const input = context();
+    let release!: (value: unknown) => void;
+    const generate = vi.fn<SectionWriter["generate"]>(
+      () => new Promise((resolve) => (release = resolve)),
+    );
+    const job = await service.start(
+      service.preview(input, []).token,
+      "",
+      { generate },
+      async () => input,
+    );
+    expect(job.status).toMatch(/queued|running/);
+    expect(service.job(job.id)?.status).toBe("running");
+    expect(service.jobsForSections(["section"]).map((view) => view.id)).toEqual([job.id]);
+
+    release(ok);
+    const done = await service.wait(job.id);
+    expect(done?.status).toBe("succeeded");
+    expect(done?.result?.content.content[0]).toMatchObject({ type: "paragraph" });
+    // Polling reads memory only.
+    service.job(job.id);
+    service.job(job.id);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("never runs two generations for one section", async () => {
+    const service = createAiService();
+    const input = context();
+    const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
+    const first = await service.start(
+      service.preview(input, []).token,
+      "",
+      { generate },
+      async () => input,
+    );
+    const second = await service.start(
+      service.preview(input, []).token,
+      "",
+      { generate },
+      async () => input,
+    );
+    expect(second.id).toBe(first.id);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the configured deadline and aborts the request", async () => {
+    vi.useFakeTimers();
+    try {
+      const service = createAiService();
+      const input = context();
+      const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
+      const job = await service.start(
+        service.preview(input, []).token,
+        "",
+        { generate },
+        async () => input,
+        { timeoutMs: 30_000 },
+      );
+      expect(Date.parse(job.deadlineAt) - Date.parse(job.startedAt)).toBe(30_000);
+      await vi.advanceTimersByTimeAsync(30_001);
+      expect(service.job(job.id)).toMatchObject({ status: "failed", error: { code: "timeout" } });
+      expect(generate.mock.calls[0]![2].aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels: aborts the request and ignores a late answer", async () => {
+    const service = createAiService();
+    const input = context();
+    let release!: (value: unknown) => void;
+    const generate = vi.fn<SectionWriter["generate"]>(
+      () => new Promise((resolve) => (release = resolve)),
+    );
+    const job = await service.start(
+      service.preview(input, []).token,
+      "",
+      { generate },
+      async () => input,
+    );
+    expect(service.cancel(job.id)?.status).toBe("cancelled");
+    expect(generate.mock.calls[0]![2].aborted).toBe(true);
+    release(ok);
+    await service.wait(job.id);
+    const view = service.job(job.id);
+    expect(view?.status).toBe("cancelled");
+    expect(view?.result).toBeUndefined();
+  });
+
+  it("keeps a suggestion for 15 minutes from when it was produced, then forgets the job", async () => {
+    vi.useFakeTimers();
+    try {
+      const service = createAiService();
+      const input = context();
+      let release!: (value: unknown) => void;
+      const generate = vi.fn<SectionWriter["generate"]>(
+        () => new Promise((resolve) => (release = resolve)),
+      );
+      const job = await service.start(
+        service.preview(input, []).token,
+        "",
+        { generate },
+        async () => input,
+      );
+      // A slow provider: the 15 minutes start only when the result exists.
+      await vi.advanceTimersByTimeAsync(4 * 60_000);
+      release(ok);
+      const done = await service.wait(job.id);
+      expect(Date.parse(done!.result!.expiresAt) - Date.parse(done!.finishedAt!)).toBe(
+        AI_LIMITS.ttlMs,
+      );
+      await vi.advanceTimersByTimeAsync(AI_LIMITS.ttlMs - 1_000);
+      expect(service.job(job.id)?.status).toBe("succeeded");
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(service.job(job.id)).toBeNull();
+      await expect(
+        service.apply(done!.result!.token, false, async () => input, vi.fn()),
+      ).rejects.toThrow("expired");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports provider failures on the job, with the specific code", async () => {
+    const service = createAiService();
+    const input = context();
+    for (const code of ["blocked", "rateLimit", "dns", "outputEmpty"] as const) {
+      const job = await service.start(
+        service.preview(input, []).token,
+        "",
+        { generate: async () => Promise.reject(new AiError(code)) },
+        async () => input,
+      );
+      const done = await service.wait(job.id);
+      expect(done).toMatchObject({ status: "failed", error: { code } });
+      service.dismiss(job.id);
+      expect(service.job(job.id)).toBeNull();
+    }
+  });
+
+  it("does not know jobs of another server process", () => {
+    expect(createAiService().job("00000000-0000-4000-8000-000000000000")).toBeNull();
+  });
+});
+
+describe("body details field (TASK 10)", () => {
+  const facts: CharacterFacts = {
+    schemaVersion: 3,
+    displayName: "An",
+    values: {
+      "appearance.overview": { state: "specified", value: "Cao gầy." },
+      "appearance.body_details": { state: "specified", value: "CHI TIẾT RIÊNG TƯ" },
+    },
+  };
+
+  it("is a valid fact on its own: saving needs no provider", () => {
+    expect(parseCharacterFacts(facts).success).toBe(true);
+    expect(isSensitive(getBuiltinField("appearance.body_details")!)).toBe(true);
+  });
+
+  it("is left out of the AI payload unless allowed for that request", () => {
+    const withheld = selectSectionFacts(facts, {}, ["appearance"]);
+    expect(withheld.json).toContain("Cao gầy.");
+    expect(withheld.json).not.toContain("CHI TIẾT RIÊNG TƯ");
+    expect(withheld.permissions).toContain("appearance.body_details");
+
+    const allowed = selectSectionFacts(facts, {}, ["appearance"], ["appearance.body_details"]);
+    expect(allowed.json).toContain("CHI TIẾT RIÊNG TƯ");
+    // Permission is not remembered: the next selection without it withholds the field again.
+    expect(selectSectionFacts(facts, {}, ["appearance"]).json).not.toContain("CHI TIẾT");
+  });
+});
+
+describe("model fixed per job", () => {
+  it("keeps the model a job was created with, whatever is chosen afterwards", async () => {
+    const service = createAiService();
+    const input = context();
+    const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
+    const lite = { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" };
+    const job = await service.start(
+      service.preview(input, []).token,
+      "",
+      { generate },
+      async () => input,
+      {
+        model: lite,
+      },
+    );
+    expect(job.model).toEqual(lite);
+    // Starting again with another model returns the running job, still on its own model.
+    const again = await service.start(
+      service.preview(input, []).token,
+      "",
+      { generate },
+      async () => input,
+      { model: { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" } },
+    );
+    expect(again.id).toBe(job.id);
+    expect(service.job(job.id)?.model).toEqual(lite);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 });

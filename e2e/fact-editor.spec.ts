@@ -19,17 +19,15 @@ async function openEditor(page: Page, id: string, query = "") {
   await expect(page.locator(READY)).toBeVisible();
 }
 
-/** Switch group via the sidebar (desktop) or the section select (mobile). */
+/** Both layouts use the same tree; mobile first opens its disclosure. */
 async function goToGroup(page: Page, label: string, isMobile: boolean, heading = label) {
   if (isMobile) {
-    await page.getByRole("combobox", { name: "Chuyển tới nhóm" }).click();
-    await page.getByRole("option", { name: new RegExp(`^${escape(label)}`) }).click();
-  } else {
-    await page
-      .getByRole("navigation", { name: "Nhóm dữ kiện" })
-      .getByRole("button", { name: new RegExp(`^${escape(label)}( \\d+)?$`) })
-      .click();
+    await page.getByRole("button", { name: /^Chuyển tới nhóm:/ }).click();
   }
+  await page
+    .getByRole("navigation", { name: "Nhóm dữ kiện" })
+    .getByRole("button", { name: new RegExp(`^${escape(label)}( \\d+)?$`) })
+    .click();
   await expect(page.getByRole("heading", { level: 2, name: heading, exact: true })).toBeVisible();
 }
 
@@ -81,9 +79,11 @@ test("edits many field kinds and special states, and keeps them after reload", a
 
   // Advanced-only fields and the special states.
   await page.getByRole("radio", { name: "Nâng cao" }).click();
-  await setState(page, "Họ", "Xác nhận không có");
-  await setState(page, "Quốc tịch", "Không áp dụng");
-  await expect(field(page, "Họ")).toContainText("Bạn đã xác nhận nhân vật không có điều này.");
+  await setState(page, "Quốc tịch", "Xác nhận không có");
+  await setState(page, "Tuổi trông như", "Không áp dụng");
+  await expect(field(page, "Quốc tịch")).toContainText(
+    "Bạn đã xác nhận nhân vật không có điều này.",
+  );
   // Only fields that allow it offer "explicit none".
   await page.getByRole("button", { name: "Trạng thái của Tuổi trông như", exact: true }).click();
   await expect(page.getByRole("menuitemradio", { name: "Xác nhận không có" })).toHaveCount(0);
@@ -111,8 +111,8 @@ test("edits many field kinds and special states, and keeps them after reload", a
     year: -120,
   });
   expect(stored.facts.values["identity.gender_identity"]?.value).toEqual({ other: "Linh hồn gió" });
-  expect(stored.facts.values["identity.family_name"]).toEqual({ state: "explicit_none" });
-  expect(stored.facts.values["identity.nationality"]).toEqual({ state: "not_applicable" });
+  expect(stored.facts.values["identity.nationality"]).toEqual({ state: "explicit_none" });
+  expect(stored.facts.values["identity.apparent_age"]).toEqual({ state: "not_applicable" });
   expect(stored.facts.values["behavior.speech_pace"]?.value).toEqual({ option: "slow" });
   // Untouched fields are never written as "unspecified".
   expect(stored.facts.values["identity.common_name"]).toBeUndefined();
@@ -125,7 +125,9 @@ test("edits many field kinds and special states, and keeps them after reload", a
   await expect(textbox(page, "Tuổi")).toHaveValue("0");
   // Advanced mode is remembered.
   await expect(page.getByRole("radio", { name: "Nâng cao" })).toHaveAttribute("data-state", "on");
-  await expect(field(page, "Quốc tịch")).toContainText("Khái niệm này không áp dụng cho nhân vật.");
+  await expect(field(page, "Tuổi trông như")).toContainText(
+    "Khái niệm này không áp dụng cho nhân vật.",
+  );
 });
 
 test("switching basic / advanced never loses data and flags hidden facts", async ({
@@ -136,16 +138,18 @@ test("switching basic / advanced never loses data and flags hidden facts", async
   await openEditor(page, id);
   await page.getByRole("radio", { name: "Nâng cao" }).click();
   await goToGroup(page, "Định danh", isMobile);
-  await textbox(page, "Tên").fill("Vân");
+  await textbox(page, "Tuổi trông như").fill("Khoảng hai mươi");
   await expectSaved(page);
 
   await page.getByRole("radio", { name: "Cơ bản" }).click();
-  await expect(textbox(page, "Tên")).toHaveCount(0);
+  await expect(textbox(page, "Tuổi trông như")).toHaveCount(0);
   const notice = page.getByRole("complementary").filter({ hasText: "Có dữ kiện đang ẩn" });
-  await expect(notice).toContainText("Tên");
+  await expect(notice).toContainText("Tuổi trông như");
   await notice.getByRole("button", { name: "Chuyển sang Nâng cao" }).click();
-  await expect(textbox(page, "Tên")).toHaveValue("Vân");
-  expect((await readCharacter(id)).facts.values["identity.given_name"]?.value).toBe("Vân");
+  await expect(textbox(page, "Tuổi trông như")).toHaveValue("Khoảng hai mươi");
+  expect((await readCharacter(id)).facts.values["identity.apparent_age"]?.value).toBe(
+    "Khoảng hai mươi",
+  );
 });
 
 test("list items keep stable ids and per-item sensitivity through reorder and reload", async ({
@@ -544,4 +548,150 @@ test("basic info from the library dialog stays intact while editing other facts"
   await expect(page.getByText("Hà Minh Khôi").first()).toBeVisible();
   await expect(page.getByText("31 tuổi").first()).toBeVisible();
   await expect(page.getByText("3 dữ kiện đã nhập")).toBeVisible();
+});
+
+test("given/family name are no longer edited, but stored values stay visible and intact", async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  const id = await insertCharacter(uniqueName("Họ tên cũ", testInfo.project.name), {
+    values: {
+      "identity.given_name": { state: "specified", value: "Vân" },
+      "identity.family_name": { state: "specified", value: "Lâm" },
+    },
+  });
+  await openEditor(page, id);
+  await page.getByRole("radio", { name: "Nâng cao" }).click();
+  await goToGroup(page, "Định danh", isMobile);
+  // Only the full name is offered for input…
+  await expect(textbox(page, "Họ tên đầy đủ")).toBeVisible();
+  await expect(textbox(page, "Tên (dữ liệu cũ)")).toHaveCount(0);
+  await expect(textbox(page, "Họ (dữ liệu cũ)")).toHaveCount(0);
+  // …while old values are shown read-only for a manual move, never merged automatically.
+  await expect(field(page, "Tên (dữ liệu cũ)")).toContainText("Vân");
+  await expect(field(page, "Họ (dữ liệu cũ)")).toContainText("Lâm");
+  await expect(textbox(page, "Họ tên đầy đủ")).toHaveValue("");
+
+  const stored = await readCharacter(id);
+  expect(stored.facts.values["identity.given_name"]?.value).toBe("Vân");
+  expect(stored.facts.values["identity.family_name"]?.value).toBe("Lâm");
+  expect(stored.facts.values["identity.full_name"]).toBeUndefined();
+});
+
+test("the left navigation tree opens fields in built-in and custom groups", async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  test.slow(); // several groups and a custom group
+  const id = await insertCharacter(uniqueName("Chuyển trường", testInfo.project.name), {
+    values: {},
+    custom: {
+      groups: [{ id: "cg_magic01", label: "Phép thuật" }],
+      fields: [
+        { key: "custom.spells01", label: "Phép đã học", group: "cg_magic01", kind: "long_text" },
+        { key: "custom.mana01", label: "Mana", group: "cg_magic01", kind: "short_text" },
+      ],
+    },
+  });
+  await openEditor(page, id);
+  await page.getByRole("radio", { name: "Nâng cao" }).click();
+
+  const nav = page.getByRole("navigation", { name: "Nhóm dữ kiện" }).filter({ visible: true });
+  const jump = async (group: string, label: string, subgroup?: string) => {
+    if (isMobile) await page.getByRole("button", { name: /^Chuyển tới nhóm:/ }).click();
+    const expand = nav.getByRole("button", { name: `Mở rộng ${group}`, exact: true });
+    if (await expand.count()) await expand.click();
+    if (subgroup) {
+      const childExpand = nav.getByRole("button", { name: `Mở rộng ${subgroup}`, exact: true });
+      if (await childExpand.count()) await childExpand.click();
+    }
+    await nav.getByRole("button", { name: label, exact: true }).focus();
+    await page.keyboard.press("Enter");
+  };
+
+  // Appearance: a field inside a collapsed sub-group is opened, scrolled to and focused.
+  await goToGroup(page, "Ngoại hình", isMobile);
+  await page.getByRole("button", { name: /^Mái tóc/ }).click();
+  await expect(textbox(page, "Màu tóc")).toBeHidden();
+  await jump("Ngoại hình", "Màu tóc", "Mái tóc");
+  await expect(textbox(page, "Màu tóc")).toBeFocused();
+  await jump("Ngoại hình", "Chi tiết đặc điểm cơ thể", "Vóc dáng");
+  await expect(textbox(page, "Chi tiết đặc điểm cơ thể")).toBeFocused();
+
+  // Another built-in group.
+  await goToGroup(page, "Tính cách", isMobile);
+  await jump("Tính cách", "Nhược điểm");
+  await expect(field(page, "Nhược điểm")).toBeInViewport();
+
+  // A custom group.
+  await goToGroup(page, "Phép thuật", isMobile);
+  await jump("Phép thuật", "Mana");
+  await expect(textbox(page, "Mana")).toBeFocused();
+  if (isMobile) await page.getByRole("button", { name: /^Chuyển tới nhóm:/ }).click();
+  await expect(nav.getByRole("button", { name: "Mana", exact: true })).toHaveAttribute(
+    "aria-current",
+    "location",
+  );
+  await expect(
+    nav.getByRole("button", { name: "Thu gọn Ngoại hình", exact: true }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("field-jump")).toHaveCount(0);
+
+  // Navigation only: nothing was written.
+  expect((await readCharacter(id)).revision).toBe(1);
+});
+
+test("body details save as a sensitive fact, without any AI involved", async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  const id = await insertCharacter(uniqueName("Cơ thể", testInfo.project.name));
+  await openEditor(page, id);
+  await page.getByRole("radio", { name: "Nâng cao" }).click();
+  await goToGroup(page, "Ngoại hình", isMobile);
+  const details = field(page, "Chi tiết đặc điểm cơ thể");
+  await expect(details).toContainText("Nhạy cảm");
+  const text = "Vết bớt hình lá ở hông trái; giải phẫu ghi chú tự do — giữ nguyên từng chữ.";
+  await textbox(page, "Chi tiết đặc điểm cơ thể").fill(text);
+  await expectSaved(page);
+  expect((await readCharacter(id)).facts.values["appearance.body_details"]).toEqual({
+    state: "specified",
+    value: text,
+  });
+});
+
+test("moves between the fact editor and the profile, guarding unsaved input", async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  test.slow(); // two pages, a failed save and a retry
+  const id = await insertCharacter(uniqueName("Hai chiều", testInfo.project.name));
+  await openEditor(page, id);
+  await goToGroup(page, "Định danh", isMobile);
+
+  // Saving fails (Server Actions are POSTs to the page URL): the input stays and leaving asks.
+  await page.route(`**/characters/${id}/edit**`, (route) =>
+    route.request().method() === "POST" ? route.abort("internetdisconnected") : route.continue(),
+  );
+  await textbox(page, "Họ tên đầy đủ").fill("Chưa lưu được");
+  await expect(status(page)).toHaveText("Lưu thất bại", { timeout: 20_000 });
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await page.getByRole("link", { name: "Hồ sơ chi tiết" }).filter({ visible: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/characters/${id}/edit`));
+  await expect(textbox(page, "Họ tên đầy đủ")).toHaveValue("Chưa lưu được");
+
+  // Once saved, the link goes straight to the same character's profile…
+  await page.unroute(`**/characters/${id}/edit**`);
+  await page.getByRole("button", { name: "Thử lưu lại" }).click();
+  await expectSaved(page);
+  await page.getByRole("link", { name: "Hồ sơ chi tiết" }).filter({ visible: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/characters/${id}/profile$`));
+  await page.getByRole("button", { name: "Tạo hồ sơ" }).click();
+  await expect(page.locator("[data-profile-workspace][data-ready]:visible")).toBeVisible();
+
+  // …and back again from the profile.
+  await page.getByRole("link", { name: "Biên tập dữ kiện" }).filter({ visible: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/characters/${id}/edit$`));
+  await expect(page.locator(READY)).toBeVisible();
+  expect((await readCharacter(id)).facts.values["identity.full_name"]?.value).toBe("Chưa lưu được");
 });

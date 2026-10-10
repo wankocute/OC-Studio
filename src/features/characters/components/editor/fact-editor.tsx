@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Info } from "lucide-react";
-import { useId, useMemo, useReducer, useState } from "react";
+import { useId, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
@@ -46,7 +46,7 @@ import {
 } from "./editor-nav";
 import { fieldDomId } from "./field-card";
 import { GeneralPanel } from "./general-panel";
-import { GroupPanel, RELATIONSHIPS_KEY, sectionDomId } from "./group-panel";
+import { focusField, GroupPanel, RELATIONSHIPS_KEY, sectionDomId } from "./group-panel";
 import { ReviewPanel } from "./review-panel";
 import { useAutosave } from "./use-autosave";
 import { useEditorMode } from "./use-editor-mode";
@@ -117,6 +117,8 @@ export function FactEditor(props: FactEditorProps) {
     return props.initialSection ?? GENERAL_SECTION;
   });
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [activeItem, setActiveItem] = useState<string>();
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const { working, library } = state;
   const deprecatedLibraryKeys = useMemo(
@@ -161,6 +163,18 @@ export function FactEditor(props: FactEditorProps) {
     (group) =>
       fieldsOfGroup(group).filter((field) => working.values[field.key] !== undefined).length,
     state.review !== null,
+    (field) => {
+      const visibility = visibilityOf(field, {
+        mode,
+        facts: working,
+        library,
+        addedLibraryKeys: state.addedLibraryKeys,
+      });
+      return (
+        visibility === "visible" ||
+        (visibility === "hidden_with_data" && field.deprecated && field.scope === "builtin")
+      );
+    },
   );
   // A section can disappear (custom group removed, review resolved): fall back to the first one.
   const active = navEntries.some((entry) => entry.id === requested) ? requested : GENERAL_SECTION;
@@ -168,14 +182,43 @@ export function FactEditor(props: FactEditorProps) {
   const activeIndex = navEntries.findIndex((entry) => entry.id === active);
 
   const select = (id: string, target?: string) => {
-    flushSync(() => setActive(id));
+    flushSync(() => {
+      setActive(id);
+      setActiveItem(undefined);
+    });
     const element = target ? document.getElementById(target) : null;
     if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
     else window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const openField = (key: string) => {
     const group = groups.find((candidate) => fieldsOfGroup(candidate).some((f) => f.key === key));
-    if (group) select(group.id, fieldDomId(idPrefix, key));
+    if (group)
+      navigate(
+        group.id,
+        group.subgroups.find((section) => section.fields.some((field) => field.key === key))?.id,
+        key,
+      );
+  };
+  const navigate = (id: string, section?: string, field?: string) => {
+    flushSync(() => {
+      setActive(id);
+      setActiveItem(field ?? section);
+      if (section)
+        setCollapsed((current) => {
+          const next = new Set(current);
+          next.delete(section);
+          return next;
+        });
+    });
+    if (field) focusField(fieldDomId(idPrefix, field));
+    else {
+      const element = section ? document.getElementById(sectionDomId(idPrefix, section)) : null;
+      if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+      else window.scrollTo({ top: 0, behavior: "smooth" });
+      (element?.querySelector<HTMLElement>("button") ?? contentRef.current)?.focus({
+        preventScroll: true,
+      });
+    }
   };
 
   const info = (field: EditorField) => ({
@@ -258,11 +301,12 @@ export function FactEditor(props: FactEditorProps) {
             <EditorNav
               entries={navEntries}
               active={active}
-              onSelect={(id, subgroup) => select(id, subgroup && sectionDomId(idPrefix, subgroup))}
+              activeItem={activeItem}
+              onSelect={navigate}
             />
           </aside>
 
-          <div className="min-w-0 space-y-8">
+          <div ref={contentRef} tabIndex={-1} className="min-w-0 space-y-8 outline-none">
             {active === GENERAL_SECTION && (
               <GeneralPanel
                 displayName={state.displayNameInput}

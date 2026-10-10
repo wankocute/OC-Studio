@@ -189,6 +189,8 @@ export const vi = {
     title: "Trình biên tập dữ kiện",
     pageTitle: "Biên tập dữ kiện",
     back: "Về hồ sơ",
+    openProfile: "Hồ sơ chi tiết",
+    openProfileHint: "Mở hồ sơ chi tiết của nhân vật này",
     modeLabel: "Chế độ hiển thị",
     modeHint: {
       basic: "Những trường thường dùng nhất.",
@@ -200,8 +202,8 @@ export const vi = {
       custom: "Trường tùy chỉnh",
       review: "Cần xem lại",
       jumpTo: "Chuyển tới nhóm",
-      expand: (label: string) => `Hiện nhóm con của ${label}`,
-      collapse: (label: string) => `Ẩn nhóm con của ${label}`,
+      expand: (label: string) => `Mở rộng ${label}`,
+      collapse: (label: string) => `Thu gọn ${label}`,
       filled: (count: number) => `${count} dữ kiện`,
       previous: "Nhóm trước",
       next: "Nhóm sau",
@@ -319,6 +321,8 @@ export const vi = {
       moveDown: (label: string) => `Đưa ${label} xuống`,
       emptyList: "Chưa có mục nào.",
       markSensitive: (label: string) => `Đánh dấu nhạy cảm: ${label}`,
+      markSensitiveTitle: "Đánh dấu riêng tư",
+      sensitiveItemHint: "Không gửi dữ kiện này cho AI nếu bạn chưa cho phép.",
       sensitiveItem: "Nhạy cảm",
       removeSensitiveTitle: "Xóa mục đã đánh dấu nhạy cảm?",
       removeSensitiveBody:
@@ -538,7 +542,7 @@ export const vi = {
       "Các mục viết bằng văn bản — ngoại hình, tính cách, tiểu sử… — dựa trên dữ kiện của nhân vật.",
     back: "Về trang nhân vật",
     openProfile: "Mở hồ sơ chi tiết",
-    openFacts: "Dữ kiện",
+    openFacts: "Biên tập dữ kiện",
     openFactsHint: "Mở trình biên tập dữ kiện",
     sourceFactsLink: "Sửa dữ kiện nguồn",
     summary: (approved: number, total: number) => `${approved}/${total} mục đã duyệt`,
@@ -898,6 +902,30 @@ export const vi = {
     confirmStale: "Tôi đã xem lại và chấp nhận đề xuất có thể lỗi thời",
     draftChanged: "Bản nháp đã đổi. Đề xuất được giữ để xem, hãy tạo lại từ bản nháp hiện tại.",
     savedFirst: "Chờ bản nháp lưu xong trước khi mở AI hoặc áp dụng.",
+    model: {
+      label: "Model",
+      hint: "Danh sách do server cho phép (GEMINI_ALLOWED_MODELS). Danh sách này không chứng minh project đang ở Free Tier; nếu project đã bật billing, Google vẫn có thể tính phí. App không tự đổi model khi lỗi hoặc hết quota.",
+      default: "mặc định",
+      used: (label: string) => `Model đã dùng: ${label}`,
+    },
+    job: {
+      running: "AI đang viết…",
+      ready: "Xem đề xuất AI",
+      runningHint: (started: string, deadline: string) =>
+        `Bắt đầu lúc ${started}, chờ tối đa đến ${deadline}. Bạn có thể đóng cửa sổ hoặc chuyển trang — tác vụ vẫn chạy trên server và kết quả chờ bạn ở đây.`,
+      closeKeepRunning: "Đóng, để AI chạy tiếp",
+      cancel: "Hủy tác vụ",
+      expiresAt: (time: string) =>
+        `Đề xuất được giữ tạm đến ${time} (15 phút) hoặc tới khi server khởi động lại.`,
+      draftKept: "Bản nháp và dữ kiện không bị thay đổi.",
+      dismiss: "Đóng thông báo",
+      finished: (title: string) =>
+        `AI đã viết xong mục “${title}”. Hãy xem đề xuất trước khi dùng.`,
+      failed: (title: string) => `AI không viết được mục “${title}”.`,
+      view: "Xem",
+      navRunning: "AI đang viết",
+      navReady: "Có đề xuất AI",
+    },
     missing:
       "Chưa cấu hình hợp lệ provider đã chọn. Gemini cần GEMINI_API_KEY và GEMINI_MODEL=gemini-3.8-flash; OpenAI cần OPENAI_API_KEY và OPENAI_MODEL. Bạn vẫn có thể soạn thủ công.",
     geminiNotice:
@@ -910,9 +938,13 @@ export const vi = {
       geminiKeyMissing:
         "Server chưa nhận GEMINI_API_KEY hoặc giá trị đang trống. Kiểm tra .env.local ở thư mục gốc và khởi động lại server. Bạn vẫn có thể soạn thủ công.",
       geminiModelMissing:
-        "Server chưa nhận GEMINI_MODEL hoặc giá trị đang trống. Đặt GEMINI_MODEL=gemini-3.8-flash.",
+        "Server chưa nhận GEMINI_MODEL (model mặc định) hoặc giá trị đang trống, ví dụ GEMINI_MODEL=gemini-3.8-flash.",
+      geminiAllowlistInvalid:
+        "GEMINI_ALLOWED_MODELS có ID không hợp lệ hoặc đang trống. Dùng danh sách ID model Gemini ngăn cách bằng dấu phẩy, ví dụ gemini-3.8-flash,gemini-3.5-flash-lite.",
+      modelNotAllowed:
+        "Model được chọn không nằm trong danh sách cho phép của server (GEMINI_ALLOWED_MODELS). Hãy mở lại cửa sổ AI và chọn model khác.",
       geminiModelUnsupported:
-        "GEMINI_MODEL không khớp model được chọn. App chỉ chấp nhận gemini-3.8-flash.",
+        "GEMINI_MODEL (model mặc định) phải nằm trong GEMINI_ALLOWED_MODELS. Khi chưa đặt GEMINI_ALLOWED_MODELS, app chỉ cho phép các model Flash / Flash-Lite đã kiểm tra trong code.",
       openaiKeyMissing:
         "AI_PROVIDER=openai nhưng server chưa nhận OPENAI_API_KEY hoặc giá trị đang trống.",
       openaiModelMissing:
@@ -936,12 +968,21 @@ export const vi = {
       network:
         "Kết nối tới AI gặp lỗi fetch. Xem loại lỗi và causeCode trong log server; bạn có thể thử lại thủ công, bản nháp vẫn được giữ.",
       timeout:
-        "AI chưa hoàn tất trước giới hạn chờ 120 giây; server đã hủy request. Bạn có thể thử lại thủ công; bản nháp vẫn được giữ.",
+        "AI chưa hoàn tất trước giới hạn chờ (mặc định 300 giây, đặt bằng AI_REQUEST_TIMEOUT_MS); server đã hủy request phía mình — việc này không bảo đảm Google đã ngừng xử lý. Bạn có thể thử lại thủ công; bản nháp vẫn được giữ.",
       dns: "Server không phân giải được địa chỉ Google (DNS). Kiểm tra mạng và DNS; bản nháp vẫn được giữ.",
       tls: "Server gặp lỗi TLS hoặc chứng chỉ khi kết nối Google. Kiểm tra chứng chỉ, proxy và mạng; bản nháp vẫn được giữ.",
       rateLimit:
         "Provider đã hết quota hoặc đang giới hạn lượt gọi (429). Hãy chờ rồi bấm tạo lại thủ công; app không tự retry hay đổi provider.",
-      output: "AI trả nội dung trống, sai định dạng hoặc vượt giới hạn. Hãy tạo lại.",
+      output: "AI trả nội dung sai định dạng hoặc vượt giới hạn. Hãy tạo lại.",
+      outputEmpty: "AI không trả về nội dung nào. Hãy tạo lại, có thể với yêu cầu viết khác.",
+      outputTruncated:
+        "Nội dung AI bị cắt giữa chừng vì vượt giới hạn độ dài trả về (MAX_TOKENS). Hãy tạo lại hoặc yêu cầu viết ngắn hơn.",
+      blocked:
+        "Google đã chặn yêu cầu hoặc nội dung trả về theo chính sách của họ (xem lý do bên dưới). Điều này chỉ ảnh hưởng việc tạo bằng AI: dữ kiện và bản nháp không bị thay đổi, bạn vẫn tự viết, lưu, duyệt và in bình thường.",
+      cancelled: "Bạn đã hủy lần tạo này. Server ngừng chờ kết quả; bản nháp không đổi.",
+      lost: "Không còn tìm thấy tác vụ AI này — có thể server đã khởi động lại hoặc kết quả đã hết hạn. Hãy tạo lại.",
+      unexpected:
+        "Lỗi không mong muốn phía server khi tạo bằng AI. Hãy thử lại; bản nháp vẫn được giữ.",
       expired: "Đề xuất hoặc bản xem trước đã hết hạn. Hãy mở lại AI.",
       changed: "Dữ kiện hoặc mục đã đổi sau khi xem trước. Hãy xem trước lại trước khi tạo.",
       empty: "Không có dữ kiện để viết mục này. Hãy bổ sung dữ kiện trước.",

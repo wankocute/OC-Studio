@@ -363,3 +363,24 @@ test("keeps the draft when saving fails, retries, and warns before leaving", asy
   await page.getByRole("link", { name: "Về trang nhân vật" }).click();
   await expect(page.getByText("0/9 mục đã duyệt")).toBeVisible();
 });
+
+test("the AI dialog offers the allowed models and closes without starting anything", async ({
+  page,
+}, testInfo) => {
+  await createProfile(page, uniqueName("Model", testInfo.project.name));
+  await page.getByRole("button", { name: "Viết với AI" }).click();
+  const dialog = page.getByRole("dialog", { name: "AI hỗ trợ mục này" });
+  const picker = dialog.getByRole("combobox", { name: "Model" });
+  await expect(picker).toBeVisible();
+  await picker.click();
+  // Only lists models from the server's allowlist; picking one sends nothing yet.
+  await page
+    .getByRole("option", { name: /Flash-Lite/ })
+    .first()
+    .click();
+  await expect(picker).toContainText("Flash-Lite");
+  await expect(dialog).toContainText("không chứng minh project đang ở Free Tier");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: "Viết với AI" })).toBeVisible();
+});

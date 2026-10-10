@@ -28,8 +28,8 @@
 **Lưu ý khi thử:**
 
 - API key chỉ nằm trong `.env.local` (đã có trong `.gitignore`) — không commit, không dán vào chat hay issue. Trang Tổng quan / Cài đặt chỉ cho biết provider, model và "Đã cấu hình" / "Chưa cấu hình"; "Đã cấu hình" nghĩa là cấu hình local hợp lệ, **không** có nghĩa đã kiểm tra kết nối, quota hay gói Free Tier.
-- Gemini phụ thuộc quota của project và có thể phản hồi chậm (app chờ tối đa 120 giây). Hết quota thì app báo lỗi; bạn vẫn soạn thủ công được.
-- Đề xuất AI chỉ được giữ tạm trong bộ nhớ server: hết hạn sau 15 phút hoặc khi server khởi động lại — hãy áp dụng hoặc bỏ trước đó.
+- Gemini phụ thuộc quota của project và có thể phản hồi chậm (mặc định chờ tối đa 300 giây, đổi bằng `AI_REQUEST_TIMEOUT_MS`). AI chạy nền: bạn có thể đóng cửa sổ hoặc chuyển trang trong lúc chờ. Hết quota thì app báo lỗi; bạn vẫn soạn thủ công được.
+- Tác vụ AI và đề xuất chỉ được giữ tạm trong bộ nhớ server: đề xuất hết hạn 15 phút sau khi AI viết xong, và mọi thứ mất khi server khởi động lại (trang báo tác vụ không còn, không treo ở trạng thái đang chạy) — hãy áp dụng hoặc bỏ trước đó.
 - Dữ liệu nằm trong database PostgreSQL của bạn và thư mục ảnh `storage/`; hãy sao lưu cả hai.
 
 ## AI viết từng mục (TASK 07)
@@ -37,7 +37,7 @@
 TASK 07.1 dùng Gemini mặc định, chọn `gemini-3.8-flash`: đầu vào/đầu ra văn bản
 có [Free Tier trong bảng giá Google](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash)
 và hỗ trợ [JSON có cấu trúc](https://ai.google.dev/gemini-api/docs/generate-content/structured-output),
-đã kiểm tra ngày 2026-10-10. App chỉ chấp nhận model Gemini này; không tự đổi model/provider.
+đã kiểm tra ngày 2026-10-10. Đây là model mặc định; các model khác chỉ dùng được khi nằm trong allowlist (xem "Chọn model" bên dưới). App không tự đổi model/provider.
 
 1. Đăng nhập [Google AI Studio → API keys](https://aistudio.google.com/api-keys),
    tạo key trong một project mới hoặc chọn project **Free Tier** chưa bật billing.
@@ -53,7 +53,24 @@ và hỗ trợ [JSON có cấu trúc](https://ai.google.dev/gemini-api/docs/gene
    AI_PROVIDER=gemini
    GEMINI_API_KEY=<key của project Free Tier>
    GEMINI_MODEL=gemini-3.8-flash
+   # Tùy chọn: các model được hiện trong ô "Model" của cửa sổ AI
+   GEMINI_ALLOWED_MODELS=gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite
    ```
+
+**Chọn model:** cửa sổ AI có ô **Model** trước khi tạo. Danh sách lấy từ
+`GEMINI_ALLOWED_MODELS` (ID ngăn cách bằng dấu phẩy); `GEMINI_MODEL` là model mặc định và phải
+nằm trong danh sách. Không đặt `GEMINI_ALLOWED_MODELS` thì app chỉ cho các model đã kiểm tra trong
+code: Gemini 3.8 Flash, 3.6 Flash, 3.5 Flash-Lite, 3.1 Flash-Lite — đều ghi "Free of charge" ở cột
+Free Tier của [bảng giá](https://ai.google.dev/gemini-api/docs/pricing) khi kiểm tra ngày
+2026-10-11 (bảng giá có thể thay đổi; hãy tự kiểm tra lại). Flash-Lite được ghi là lựa chọn ưu tiên
+tốc độ, không phải cam kết thời gian hay chất lượng. Server chỉ chấp nhận ID thuộc allowlist (không
+tin ID client gửi), chốt model vào tác vụ lúc bắt đầu (đổi lựa chọn sau đó không ảnh hưởng tác vụ
+đang chạy) và ghi model đã dùng trên đề xuất. `thinkingConfig.thinkingLevel=LOW` chỉ được gửi cho
+model mà [tài liệu thinking](https://ai.google.dev/gemini-api/docs/thinking) liệt kê mức này
+(3.8 Flash, 3.6 Flash); Flash-Lite và model không có trong danh mục của app dùng mặc định của Google.
+App không tự đổi model khi lỗi hay hết quota, không fallback sang dịch vụ trả phí. **Allowlist chỉ
+giới hạn lựa chọn của app, không chứng minh project đang ở Free Tier: nếu project đã bật billing,
+Google vẫn có thể tính phí.**
 
 Google có thể dùng nội dung Free Tier để cải thiện sản phẩm; thông tin này cũng
 hiện ở bước preview. Quota thực tế phụ thuộc project và có thể thay đổi: xem
@@ -84,8 +101,28 @@ AI không nhận bản nháp, bản duyệt, ảnh hoặc hồ sơ OC liên kế
 bằng luồng hiện có. Nếu bản nháp đổi, phải tạo lại; nếu dữ kiện đổi, cần xem lại và
 xác nhận đề xuất có thể lỗi thời. Quyền nhạy cảm không được nhớ cho lần tạo sau.
 
-Đề xuất chưa áp dụng hết hạn sau 15 phút hoặc khi server khởi động lại; tối đa
-100 bản trong bộ nhớ. Một lần gọi chờ tối đa 120 giây, dữ kiện ≤ 60 000 ký tự,
+**Chạy nền (TASK 10):** bấm **Tạo nội dung** chỉ tạo một tác vụ trên server rồi trả về
+ngay; cửa sổ luôn đóng được (nút X / Escape), đóng hay chuyển trang không hủy tác vụ.
+Mục đang được viết hiện "AI đang viết…" ở danh sách mục và ở nút AI (bấm để mở lại);
+khi xong, app báo có đề xuất để xem — **không** tự áp dụng hay duyệt. Mỗi mục chỉ có một
+tác vụ chạy cùng lúc; bấm lại trả về tác vụ đang chạy, không gọi provider lần nữa. Trình
+duyệt hỏi trạng thái mỗi 3 giây (chỉ đọc bộ nhớ server, không gọi Google); có nút
+**Hủy tác vụ** (server ngừng chờ và hủy request phía mình, nhưng không bảo đảm Google đã
+ngừng xử lý). Dữ kiện và quyền nhạy cảm được chốt ở bước xem trước; trong lúc chạy server
+không đọc lại để gửi thêm. Tác vụ, kết quả và lỗi **chỉ nằm trong bộ nhớ của tiến trình
+server**: khởi động lại server là mất, trang sẽ báo "Không còn tìm thấy tác vụ AI" thay vì
+treo. Không dùng Redis/hàng đợi ngoài.
+
+Lỗi được phân biệt: mạng/DNS/TLS, hết giờ chờ, key/cấu hình, quota/429, nội dung bị Google
+chặn (`promptFeedback.blockReason` hoặc `finishReason` như `SAFETY`, `PROHIBITED_CONTENT`,
+`SPII`, `RECITATION` — theo [tài liệu generateContent](https://ai.google.dev/api/generate-content)),
+output bị cắt (`MAX_TOKENS`), output trống, output sai định dạng. App không đổi safety
+settings. Google chặn chỉ ảnh hưởng lần tạo bằng AI: nhập, lưu, duyệt và in thủ công không
+bị lọc hay sửa chữ nào.
+
+Đề xuất chưa áp dụng hết hạn 15 phút sau khi được tạo xong hoặc khi server khởi động lại;
+tối đa 100 bản trong bộ nhớ. Một lần gọi chờ tối đa `AI_REQUEST_TIMEOUT_MS` (mặc định
+300 000 ms, cho phép 10 000–900 000), dữ kiện ≤ 60 000 ký tự,
 yêu cầu ≤ 2 000 ký tự, output ≤ 12 000 ký tự và 6 000 token. Không tự retry.
 Gemini dùng `thinkingConfig.thinkingLevel=LOW` theo
 [tài liệu model](https://ai.google.dev/gemini-api/docs/latest-model#understanding-reasoning-levels).
