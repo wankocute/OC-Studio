@@ -28,6 +28,7 @@ import { messages } from "@/i18n";
 import type { ActionResult } from "@/lib/action-result";
 
 import { ProfileHeader, type WorkspaceView } from "./profile-header";
+import { PrintDialog } from "./print-dialog";
 import { ProfilePreview } from "./profile-preview";
 import { AddSectionDialog, RenameSectionDialog, SourcesDialog } from "./section-dialogs";
 import { SectionNav } from "./section-nav";
@@ -146,6 +147,18 @@ export function ProfileWorkspace({
         view={view}
         onViewChange={setView}
         onRetry={() => active && saveNow(active.id)}
+        printAction={
+          <PrintDialog
+            characterId={profile.characterId}
+            sections={state.sections.map((section) => ({
+              ...section,
+              // What the database holds: the print view reads stored content only.
+              draft: state.drafts[section.id]?.saved ?? null,
+              approved: state.drafts[section.id]?.approved ?? null,
+            }))}
+            unsaved={unsaved.length}
+          />
+        }
       />
 
       {view === "preview" ? (

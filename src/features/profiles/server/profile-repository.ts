@@ -182,12 +182,20 @@ function parseSourceGroups(input: readonly string[]): string[] {
   return result.data;
 }
 
-async function assertActiveCharacter(executor: DbExecutor, characterId: string): Promise<void> {
-  const [row] = await executor
+/**
+ * The character must exist and not be soft-deleted. Writers share-lock it; readers (`lock: false`)
+ * do not, so read-only pages such as the print view never touch a row.
+ */
+async function assertActiveCharacter(
+  executor: DbExecutor,
+  characterId: string,
+  { lock = true }: { lock?: boolean } = {},
+): Promise<void> {
+  const query = executor
     .select({ id: characters.id })
     .from(characters)
-    .where(and(eq(characters.id, characterId), isNull(characters.deletedAt)))
-    .for("share");
+    .where(and(eq(characters.id, characterId), isNull(characters.deletedAt)));
+  const [row] = lock ? await query.for("share") : await query;
   if (!row) throw new RepositoryError("not_found", { entity: "character", id: characterId });
 }
 
@@ -350,7 +358,7 @@ async function loadSections(
 export function createProfileRepository(db: Database) {
   const getPrimary = (characterId: string) =>
     guard(async (): Promise<ProfileRecord | null> => {
-      await assertActiveCharacter(db, characterId);
+      await assertActiveCharacter(db, characterId, { lock: false });
       const [profile] = await db
         .select()
         .from(profiles)

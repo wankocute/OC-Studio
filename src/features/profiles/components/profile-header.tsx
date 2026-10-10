@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Route } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ export function ProfileHeader({
   view,
   onViewChange,
   onRetry,
+  printAction,
 }: {
   characterId: string;
   name: string;
@@ -78,6 +80,8 @@ export function ProfileHeader({
   view: WorkspaceView;
   onViewChange: (view: WorkspaceView) => void;
   onRetry: () => void;
+  /** "Print / Save PDF" control, shown in both views. */
+  printAction?: ReactNode;
 }) {
   const status = active ? draftStatusView(active) : null;
   const Icon = status?.icon;
@@ -127,6 +131,7 @@ export function ProfileHeader({
             <ToggleGroupItem value="edit">{t.view.edit}</ToggleGroupItem>
             <ToggleGroupItem value="preview">{t.view.preview}</ToggleGroupItem>
           </ToggleGroup>
+          {printAction}
           <Button asChild variant="outline" size="sm">
             <Link href={`/characters/${characterId}/edit` as Route} title={t.openFactsHint}>
               <FileText data-icon="inline-start" aria-hidden />

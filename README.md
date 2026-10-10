@@ -35,6 +35,17 @@ hiện ở bước preview. Quota thực tế phụ thuộc project và có th�
 app không hardcode quota. Khi hết quota/429, app báo tiếng Việt và chỉ thử lại khi
 bạn bấm tạo lại. Thiếu key/model hợp lệ thì nút tạo bị vô hiệu hóa, soạn thủ công vẫn hoạt động.
 
+Nếu cấu hình gặp lỗi, bước xem trước chỉ rõ biến thiếu hoặc `GEMINI_MODEL` không khớp.
+Lỗi Google trả về khi tạo được phân biệt bằng `error.status`, `error.message` và reason:
+`API_KEY_INVALID` (key), `INVALID_ARGUMENT` (đối số), `FAILED_PRECONDITION` (điều kiện API),
+401 (xác thực), 403 (quyền truy cập), 404 (model). Chi tiết hiển thị đã che key, URL và
+dữ kiện gửi đi; không log response. HTTP 400 riêng lẻ không được coi là lỗi payload.
+Adapter REST dùng `responseFormat.text.mimeType=APPLICATION_JSON` theo
+[enum REST TextResponseFormat](https://ai.google.dev/api/generate-content#TextResponseFormat),
+không dùng chuỗi MIME `application/json` cho trường enum này.
+Next.js nạp `.env.local` ở thư mục gốc; biến đã có trong môi trường tiến trình được ưu tiên.
+Sau khi sửa file, mở lại bước xem trước; với `pnpm start` cần khởi động lại server.
+
 Adapter OpenAI vẫn được giữ, **chỉ** gọi khi bạn đặt rõ `AI_PROVIDER=openai`,
 `OPENAI_API_KEY` và `OPENAI_MODEL`; đây là lựa chọn API có tính phí. ChatGPT Plus
 và Claude Pro không được dùng để cấp quyền API. Gemini lỗi không bao giờ fallback
@@ -48,8 +59,15 @@ bằng luồng hiện có. Nếu bản nháp đổi, phải tạo lại; nếu d
 xác nhận đề xuất có thể lỗi thời. Quyền nhạy cảm không được nhớ cho lần tạo sau.
 
 Đề xuất chưa áp dụng hết hạn sau 15 phút hoặc khi server khởi động lại; tối đa
-100 bản trong bộ nhớ. Một lần gọi chờ tối đa 60 giây, dữ kiện ≤ 60 000 ký tự,
+100 bản trong bộ nhớ. Một lần gọi chờ tối đa 120 giây, dữ kiện ≤ 60 000 ký tự,
 yêu cầu ≤ 2 000 ký tự, output ≤ 12 000 ký tự và 6 000 token. Không tự retry.
+Gemini dùng `thinkingConfig.thinkingLevel=LOW` theo
+[tài liệu model](https://ai.google.dev/gemini-api/docs/latest-model#understanding-reasoning-levels).
+Phép đo ngày 2026-10-10 trên Node server: TLS 318 ms, gửi request 329 ms,
+HTTP 200 sau 82 675 ms với prompt tối giản 5 token và output 2 token; timeout 60 giây
+không đủ cho phản hồi đã đo. Đây là một phép đo, không phải cam kết thời gian phản hồi.
+Log `[profile-ai]` chỉ chứa loại lỗi, thời gian chờ, HTTP status và mã lỗi transport
+đã kiểm tra; không chứa key, URL, facts, instruction hoặc exception message.
 TASK 07 không thêm migration; vẫn cần migration `0001_profiles.sql` của TASK 06.
 API thật chỉ chạy khi bạn bấm tạo với key thật; các test tự động dùng adapter/fetch
 giả và server E2E ghi đè key/model, không phát sinh phí.
@@ -123,6 +141,15 @@ pnpm build && pnpm start   # bản production
 ### Trình biên tập dữ kiện
 
 Mở một nhân vật → **Mở trình biên tập** (`/characters/<id>/edit`). Form được sinh từ định nghĩa trường của domain (không có component riêng cho từng trường). Thay đổi được tự động lưu sau khoảng 1 giây ngừng gõ, chỉ khi toàn bộ dữ kiện hợp lệ; trạng thái lưu hiển thị ở đầu trang. Nếu nhân vật vừa được sửa ở tab khác, tự động lưu dừng lại và bạn chọn “Giữ thay đổi của tôi” (gộp lên bản mới nhất, hỏi lại nếu cùng một mục bị sửa ở cả hai nơi) hoặc “Tải bản mới nhất”. Hồ sơ lưu bằng định dạng cũ có mục cần xem lại sẽ chỉ được lưu sau khi bạn xác nhận phần xem lại. Trường dùng chung cho nhiều nhân vật được quản lý ở `/fields`.
+
+### In / Lưu PDF hồ sơ
+
+Trong hồ sơ chi tiết (cả chế độ Biên tập và Xem trước), bấm **In / Lưu PDF**, chọn nội dung rồi **Mở bản in**: trang in (`/characters/<id>/profile/print?source=approved|draft`) mở trong thẻ mới. Bấm **In / Lưu PDF** trên trang đó và trong hộp thoại in của trình duyệt chọn máy in **“Lưu dưới dạng PDF”** (Save as PDF), khổ A4, hướng dọc.
+
+- **Bản đã duyệt** (mặc định): chỉ nội dung đã duyệt. Mục chưa được duyệt bị bỏ qua (không lấy bản nháp thay vào) và trang báo số mục bị bỏ.
+- **Bản nháp đã lưu**: bản in ghi rõ “Bản nháp — chưa được duyệt”. Nếu còn mục chưa lưu, phải đợi lưu thành công rồi mới mở được.
+- Bản in gồm tên hiển thị, ảnh đại diện (nếu có) và các mục hiển thị, không trống, theo đúng thứ tự và tên hiện tại. Không in dữ kiện thô, ảnh tham khảo, lịch sử hay đề xuất AI. Trang in chỉ đọc database.
+- Giới hạn: đây là tính năng in của trình duyệt — OC Studio không tự tạo file PDF. Lề, đầu/chân trang (ngày, URL) và việc in nền phụ thuộc tùy chọn trong hộp thoại in; nên tắt “Đầu trang và chân trang” nếu không muốn. Bản in dùng font serif có sẵn của hệ điều hành (Times New Roman, Noto Serif…), không tải font qua mạng; kết quả có thể khác đôi chút giữa các trình duyệt. Chỉ có một mẫu A4 dọc, chưa có mục lục.
 
 ### Ảnh tải lên
 

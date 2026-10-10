@@ -672,6 +672,43 @@ export const vi = {
       notApproved: "Chưa có bản đã duyệt.",
       nothing: "Chưa có mục nào hiển thị.",
     },
+    print: {
+      open: "In / Lưu PDF",
+      pageTitle: "In hồ sơ",
+      dialogTitle: "In hoặc lưu PDF",
+      dialogDescription:
+        "Mở bản in trong thẻ mới, rồi dùng hộp thoại in của trình duyệt. Để có file PDF, chọn “Lưu dưới dạng PDF”.",
+      sourceLabel: "Nội dung in",
+      sources: {
+        approved: "Bản đã duyệt",
+        draft: "Bản nháp đã lưu",
+      },
+      sourceHints: {
+        approved: "Mặc định. Chỉ in nội dung đã duyệt.",
+        draft: "Nội dung chưa được duyệt — bản in sẽ ghi rõ là bản nháp.",
+      },
+      draftBadge: "Bản nháp — chưa được duyệt",
+      approvedBadge: "Bản đã duyệt",
+      sectionsCount: (count: number) => `${count} mục sẽ được in.`,
+      unapproved: (count: number) =>
+        `${count} mục chưa được duyệt sẽ bị bỏ qua (bản nháp không được chèn vào bản đã duyệt).`,
+      newerDraft: (count: number) =>
+        `${count} mục có bản nháp mới hơn chưa duyệt — bản in dùng nội dung đã duyệt.`,
+      unsaved: (count: number) =>
+        `Còn ${count} mục chưa lưu. Đợi lưu thành công (hoặc bấm “Thử lưu lại”) rồi mới in bản nháp.`,
+      continue: "Mở bản in",
+      back: "Về hồ sơ",
+      printButton: "In / Lưu PDF",
+      howTo:
+        "Trong hộp thoại in, chọn máy in “Lưu dưới dạng PDF” (Save as PDF), khổ A4, hướng dọc. Đây là tính năng in của trình duyệt — OC Studio không tự tạo file PDF.",
+      switchTo: (label: string) => `Chuyển sang ${label.toLocaleLowerCase("vi")}`,
+      emptyTitle: "Chưa có nội dung để in",
+      emptyApproved:
+        "Chưa có mục nào được duyệt. Hãy duyệt nội dung trong hồ sơ, hoặc chuyển sang bản nháp đã lưu.",
+      emptyDraft: "Các mục hiển thị của hồ sơ đều đang trống.",
+      noProfile: "Nhân vật này chưa có hồ sơ chi tiết.",
+      printedFrom: "Hồ sơ nhân vật · OC Studio",
+    },
     toolbar: {
       label: "Định dạng văn bản",
       bold: "In đậm",
@@ -853,10 +890,38 @@ export const vi = {
     notice:
       "AI chỉ nhận dữ kiện bên dưới và yêu cầu viết của bạn. Bản nháp, bản duyệt và ảnh không được gửi. Quyền nhạy cảm không được nhớ cho lần sau. Đề xuất hết hạn sau 15 phút hoặc khi server khởi động lại.",
     errors: {
+      geminiKeyMissing:
+        "Server chưa nhận GEMINI_API_KEY hoặc giá trị đang trống. Kiểm tra .env.local ở thư mục gốc và khởi động lại server. Bạn vẫn có thể soạn thủ công.",
+      geminiModelMissing:
+        "Server chưa nhận GEMINI_MODEL hoặc giá trị đang trống. Đặt GEMINI_MODEL=gemini-3.8-flash.",
+      geminiModelUnsupported:
+        "GEMINI_MODEL không khớp model được chọn. App chỉ chấp nhận gemini-3.8-flash.",
+      openaiKeyMissing:
+        "AI_PROVIDER=openai nhưng server chưa nhận OPENAI_API_KEY hoặc giá trị đang trống.",
+      openaiModelMissing:
+        "AI_PROVIDER=openai nhưng server chưa nhận OPENAI_MODEL hoặc giá trị đang trống.",
+      geminiKeyRejected:
+        "Google báo API key không hợp lệ. Kiểm tra GEMINI_API_KEY trong Google AI Studio; xem mã lỗi cụ thể bên dưới.",
+      geminiRequestRejected:
+        "Google báo INVALID_ARGUMENT: một đối số yêu cầu không được chấp nhận. Xem chi tiết Google bên dưới để xác định tham số hoặc dữ liệu bị từ chối.",
+      geminiRejected:
+        "Google từ chối yêu cầu. Xem status, message và reason bên dưới; mã HTTP riêng lẻ chưa đủ để xác định nguyên nhân.",
+      geminiPrecondition:
+        "Google báo FAILED_PRECONDITION: điều kiện sử dụng API chưa được đáp ứng. Xem chi tiết bên dưới; app không tự bật billing hoặc đổi model.",
+      geminiUnauthorized:
+        "Google không chấp nhận xác thực bằng GEMINI_API_KEY (HTTP 401). Kiểm tra key trong Google AI Studio.",
+      geminiForbidden:
+        "Google từ chối quyền gọi generateContent (HTTP 403). Kiểm tra quyền, giới hạn của API key và trạng thái Gemini API trong project.",
+      geminiModelNotFound:
+        "Google không tìm thấy hoặc không cấp quyền truy cập GEMINI_MODEL=gemini-3.8-flash qua v1beta generateContent (HTTP 404). App không tự đổi model.",
       configuration:
         "Cấu hình AI thiếu hoặc không hợp lệ. Kiểm tra provider, API key và model trên server; Gemini chỉ hỗ trợ gemini-3.8-flash đã chọn cho Free Tier.",
       network:
-        "Không kết nối được AI hoặc đã quá thời gian chờ. Bạn có thể tạo lại; bản nháp vẫn được giữ.",
+        "Kết nối tới AI gặp lỗi fetch. Xem loại lỗi và causeCode trong log server; bạn có thể thử lại thủ công, bản nháp vẫn được giữ.",
+      timeout:
+        "AI chưa hoàn tất trước giới hạn chờ 120 giây; server đã hủy request. Bạn có thể thử lại thủ công; bản nháp vẫn được giữ.",
+      dns: "Server không phân giải được địa chỉ Google (DNS). Kiểm tra mạng và DNS; bản nháp vẫn được giữ.",
+      tls: "Server gặp lỗi TLS hoặc chứng chỉ khi kết nối Google. Kiểm tra chứng chỉ, proxy và mạng; bản nháp vẫn được giữ.",
       rateLimit:
         "Provider đã hết quota hoặc đang giới hạn lượt gọi (429). Hãy chờ rồi bấm tạo lại thủ công; app không tự retry hay đổi provider.",
       output: "AI trả nội dung trống, sai định dạng hoặc vượt giới hạn. Hãy tạo lại.",
