@@ -407,21 +407,6 @@ export function createProfileRepository(db: Database) {
         return (await getPrimary(characterId))!;
       }),
 
-    /** Lightweight summary for the character page. */
-    getPrimarySummary: (characterId: string) =>
-      guard(async () => {
-        const rows = await db
-          .select({
-            sections: sql<number>`count(${profileSections.id}) filter (where not ${profileSections.isHidden})::int`,
-            approved: sql<number>`count(${profileSections.approvedRevisionId}) filter (where not ${profileSections.isHidden})::int`,
-          })
-          .from(profiles)
-          .leftJoin(profileSections, eq(profileSections.profileId, profiles.id))
-          .where(and(eq(profiles.characterId, characterId), eq(profiles.isPrimary, true)))
-          .groupBy(profiles.id);
-        return rows[0] ?? null;
-      }),
-
     addSection: (
       profileId: string,
       expectedRevision: number,

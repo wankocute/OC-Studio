@@ -273,6 +273,9 @@ export function SectionPanel({
         />
       )}
 
+      {/* Shown in both versions: it is about the approved text, but the fix is in the draft. */}
+      <FactsNotice draft={draft} />
+
       {version === "draft" ? (
         <div className="space-y-2">
           <RichTextEditor
@@ -302,7 +305,6 @@ export function SectionPanel({
                 {t.approvedAt(dateFormat.format(new Date(draft.approved.approvedAt)))} ·{" "}
                 {t.approvedReadOnly}
               </p>
-              <FactsNotice draft={draft} />
               <div className="rounded-xl border bg-card px-4 py-3" data-testid="approved-content">
                 <RichTextView content={draft.approved.content} />
               </div>

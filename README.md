@@ -2,9 +2,35 @@
 
 Ứng dụng web cá nhân để tạo, quản lý và biên tập hồ sơ nhân vật hư cấu (Original Characters) phục vụ viết truyện và roleplay.
 
-> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02–03), lưu trữ PostgreSQL (TASK 03) , giao diện thư viện nhân vật (TASK 04): tạo / xem / sửa thông tin cơ bản / xóa OC, tìm kiếm, sắp xếp, yêu thích, thẻ, bộ sưu tập, ảnh đại diện và ảnh tham khảo; và trình biên tập dữ kiện (TASK 05): mọi nhóm dữ kiện, chế độ Cơ bản / Nâng cao, bốn trạng thái dữ kiện, tự động lưu có xử lý xung đột, trường tùy chỉnh riêng và dùng chung, quan hệ nhân vật, đánh dấu nhạy cảm theo phần tử, xem lại dữ liệu cũ và ngôn ngữ nguồn; và hồ sơ chi tiết (TASK 06, `/characters/[id]/profile`): các mục văn bản soạn bằng Tiptap, tự động lưu, bản nháp tách khỏi bản đã duyệt, lịch sử phiên bản có khôi phục, thêm / đổi tên / sắp xếp / ẩn mục và xem trước. Đã có AI hỗ trợ viết từng mục (TASK 07); chưa có xuất PDF.
+> **Trạng thái:** đã có nền tảng ứng dụng (TASK 01), mô hình dữ kiện nhân vật `schemaVersion: 3` (TASK 02–03), lưu trữ PostgreSQL (TASK 03) , giao diện thư viện nhân vật (TASK 04): tạo / xem / sửa thông tin cơ bản / xóa OC, tìm kiếm, sắp xếp, yêu thích, thẻ, bộ sưu tập, ảnh đại diện và ảnh tham khảo; và trình biên tập dữ kiện (TASK 05): mọi nhóm dữ kiện, chế độ Cơ bản / Nâng cao, bốn trạng thái dữ kiện, tự động lưu có xử lý xung đột, trường tùy chỉnh riêng và dùng chung, quan hệ nhân vật, đánh dấu nhạy cảm theo phần tử, xem lại dữ liệu cũ và ngôn ngữ nguồn; và hồ sơ chi tiết (TASK 06, `/characters/[id]/profile`): các mục văn bản soạn bằng Tiptap, tự động lưu, bản nháp tách khỏi bản đã duyệt, lịch sử phiên bản có khôi phục, thêm / đổi tên / sắp xếp / ẩn mục và xem trước. Đã có AI hỗ trợ viết từng mục (TASK 07), in / lưu PDF qua trình duyệt (TASK 08) và bản MVP để dùng thử (TASK 09).
 
 > Sau khi cập nhật lên TASK 06 cần áp migration mới (sao lưu trước, xem `docs/database-migrations.md`): `pnpm db:migrate`.
+
+## Dùng thử (MVP)
+
+**Chạy app:** cài đặt và cấu hình PostgreSQL theo các mục [Cài đặt](#cài-đặt) và [Cấu hình PostgreSQL](#cấu-hình-postgresql) bên dưới (`pnpm install`, tạo `.env.local`, `pnpm db:migrate`), rồi `pnpm dev` và mở <http://localhost:3000>. Trang **Tổng quan** cho biết số OC, OC gần đây và trạng thái PostgreSQL / Trợ lý AI.
+
+**Luồng thử gợi ý:**
+
+1. **Tạo OC** — nút **Tạo nhân vật** (Tổng quan hoặc Thư viện): chỉ cần tên hiển thị.
+2. **Nhập dữ kiện** — trên trang nhân vật, **Mở trình biên tập** dữ kiện. Ô để trống nghĩa là "chưa xác định"; thay đổi tự lưu sau khoảng 1 giây.
+3. **Viết hồ sơ** — **Mở hồ sơ chi tiết** → **Tạo hồ sơ**, chọn một mục (ví dụ Ngoại hình) và viết; nội dung tự lưu thành bản nháp.
+4. **Dùng AI (tùy chọn)** — trong một mục, nhờ AI viết từ dữ kiện của các nhóm nguồn; xem đề xuất rồi mới áp dụng vào bản nháp. Cần cấu hình ở mục [AI viết từng mục](#ai-viết-từng-mục-task-07).
+5. **Duyệt** — **Duyệt nội dung** khi bản nháp đã lưu. Sửa tiếp chỉ đổi bản nháp.
+6. **In** — **In / Lưu PDF** → **Mở bản in** → chọn "Lưu dưới dạng PDF" trong hộp thoại in (xem [In / Lưu PDF hồ sơ](#in--lưu-pdf-hồ-sơ)).
+
+**Ba loại nội dung:**
+
+- **Dữ kiện** — thông tin gốc về nhân vật (tên, tuổi, ngoại hình…), nhập trong trình biên tập dữ kiện. Đây là nguồn sự thật duy nhất; hồ sơ và AI chỉ đọc từ đây.
+- **Bản nháp** — văn bản đang viết của từng mục hồ sơ, tự lưu, có lịch sử phiên bản.
+- **Bản đã duyệt** — phiên bản bạn chốt bằng **Duyệt nội dung**; chỉ thay đổi khi bạn duyệt lại. Bản in mặc định dùng bản đã duyệt. Nếu dữ kiện nguồn của một mục đã duyệt thay đổi sau đó, trang nhân vật và hồ sơ hiện cảnh báo "có thể cần xem lại" — app không tự sửa hay duyệt lại.
+
+**Lưu ý khi thử:**
+
+- API key chỉ nằm trong `.env.local` (đã có trong `.gitignore`) — không commit, không dán vào chat hay issue. Trang Tổng quan / Cài đặt chỉ cho biết provider, model và "Đã cấu hình" / "Chưa cấu hình"; "Đã cấu hình" nghĩa là cấu hình local hợp lệ, **không** có nghĩa đã kiểm tra kết nối, quota hay gói Free Tier.
+- Gemini phụ thuộc quota của project và có thể phản hồi chậm (app chờ tối đa 120 giây). Hết quota thì app báo lỗi; bạn vẫn soạn thủ công được.
+- Đề xuất AI chỉ được giữ tạm trong bộ nhớ server: hết hạn sau 15 phút hoặc khi server khởi động lại — hãy áp dụng hoặc bỏ trước đó.
+- Dữ liệu nằm trong database PostgreSQL của bạn và thư mục ảnh `storage/`; hãy sao lưu cả hai.
 
 ## AI viết từng mục (TASK 07)
 

@@ -1,6 +1,6 @@
 import { Bot, Database, Languages, type LucideIcon, Palette } from "lucide-react";
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ThemeSelector } from "@/features/settings/components/theme-selector";
+import { AiStatus, AiStatusFallback } from "@/features/system-status/components/ai-status";
 import { messages } from "@/i18n";
 
 const t = messages.settings;
@@ -80,7 +81,14 @@ export default function SettingsPage() {
           </p>
         </SettingsSection>
 
-        <SettingsSection icon={Bot} title={t.aiTitle} description={t.aiDescription} comingSoon />
+        <SettingsSection icon={Bot} title={t.aiTitle} description={t.aiDescription}>
+          <dl>
+            <Suspense fallback={<AiStatusFallback />}>
+              <AiStatus />
+            </Suspense>
+          </dl>
+          <p className="mt-3 text-xs text-muted-foreground">{t.aiHint}</p>
+        </SettingsSection>
 
         <SettingsSection
           icon={Database}

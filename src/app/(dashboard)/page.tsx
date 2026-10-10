@@ -25,6 +25,7 @@ import {
   getLibraryStats,
   listLibraryCharacters,
 } from "@/features/characters/server/library-queries";
+import { AiStatus, AiStatusFallback } from "@/features/system-status/components/ai-status";
 import {
   DatabaseStatus,
   DatabaseStatusFallback,
@@ -33,7 +34,7 @@ import { StatusRow } from "@/features/system-status/components/status-row";
 import { messages } from "@/i18n";
 
 const t = messages.dashboard;
-const RECENT_LIMIT = 6;
+const RECENT_LIMIT = 5;
 
 function Stat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
   return (
@@ -149,6 +150,9 @@ export default function DashboardPage() {
               />
               <Suspense fallback={<DatabaseStatusFallback />}>
                 <DatabaseStatus />
+              </Suspense>
+              <Suspense fallback={<AiStatusFallback />}>
+                <AiStatus />
               </Suspense>
             </dl>
           </CardContent>

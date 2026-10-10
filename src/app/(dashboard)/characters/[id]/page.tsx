@@ -1,4 +1,12 @@
-import { ArrowLeft, BookOpenText, FileText, Info, LibraryBig, Tag } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpenText,
+  FileText,
+  Info,
+  LibraryBig,
+  Tag,
+  TriangleAlert,
+} from "lucide-react";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -24,7 +32,7 @@ import { createCollectionRepository } from "@/features/library/server/collection
 import { createMediaRepository } from "@/features/library/server/media-repository";
 import { createTagRepository } from "@/features/library/server/tag-repository";
 import { AvatarEditor, ReferenceGallery } from "@/features/media/components/character-images";
-import { createProfileRepository } from "@/features/profiles/server/profile-repository";
+import { loadProfileProgress } from "@/features/profiles/server/profile-progress";
 import { messages } from "@/i18n";
 import { formatDateTime } from "@/lib/format";
 
@@ -42,7 +50,7 @@ async function loadCharacter(id: string) {
       createTagRepository(db).list(),
       createCollectionRepository(db).listForCharacter(id),
       createCollectionRepository(db).list(),
-      createProfileRepository(db).getPrimarySummary(id),
+      loadProfileProgress(db, id),
     ]);
     return { record, media, tags, allTags, collections, allCollections, profile };
   } catch (error) {
@@ -154,18 +162,52 @@ async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]
               </CardTitle>
               <CardDescription>{messages.profiles.description}</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
-                {profile
-                  ? messages.profiles.summary(profile.approved, profile.sections)
-                  : messages.profiles.notStarted}
-              </p>
-              <Button asChild>
-                <Link href={`/characters/${record.id}/profile` as Route}>
-                  <BookOpenText data-icon="inline-start" aria-hidden />
-                  {messages.profiles.openProfile}
-                </Link>
-              </Button>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div
+                  className="space-y-0.5 text-sm text-muted-foreground"
+                  data-testid="profile-progress"
+                >
+                  <p>
+                    {profile
+                      ? messages.profiles.summary(profile.approved, profile.sections)
+                      : messages.profiles.notStarted}
+                  </p>
+                  {profile && profile.pending > 0 && (
+                    <p>{messages.profiles.progress.pending(profile.pending)}</p>
+                  )}
+                </div>
+                <Button asChild>
+                  <Link href={`/characters/${record.id}/profile` as Route}>
+                    <BookOpenText data-icon="inline-start" aria-hidden />
+                    {messages.profiles.openProfile}
+                  </Link>
+                </Button>
+              </div>
+              {profile && profile.outdated.length > 0 && (
+                <div
+                  role="status"
+                  className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm"
+                >
+                  <p className="flex items-start gap-2">
+                    <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                    <span>
+                      {messages.profiles.progress.outdated(
+                        profile.outdated.map((section) => section.title).join(", "),
+                      )}
+                    </span>
+                  </p>
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href={
+                        `/characters/${record.id}/profile?section=${profile.outdated[0]!.key}` as Route
+                      }
+                    >
+                      {messages.profiles.progress.review}
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

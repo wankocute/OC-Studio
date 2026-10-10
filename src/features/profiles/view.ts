@@ -5,7 +5,12 @@
 import { messages } from "@/i18n";
 
 import { type FactFreshness } from "./fact-sources";
-import { isBuiltinSectionKey, type RevisionKind, type RichTextDocument } from "./domain";
+import {
+  isBuiltinSectionKey,
+  type RevisionKind,
+  type RichTextDocument,
+  sectionStatus,
+} from "./domain";
 
 export type ApprovedView = {
   revisionId: string;
@@ -61,4 +66,30 @@ export function sectionLabel(section: Pick<SectionStructureView, "key" | "title"
 
 export function defaultSectionLabel(key: string): string | undefined {
   return isBuiltinSectionKey(key) ? messages.profiles.sectionLabels[key] : undefined;
+}
+
+export type ProfileProgress = {
+  /** Visible sections (hidden ones are not part of the profile being shown). */
+  sections: number;
+  approved: number;
+  /** Visible sections with a draft that is not approved yet, or differs from the approved one. */
+  pending: number;
+  /** Visible approved sections whose source facts changed since approval. */
+  outdated: { key: string; title: string }[];
+};
+
+/** Progress of a profile, from the same status and fact-snapshot rules the workspace uses. */
+export function profileProgress(profile: ProfileView): ProfileProgress {
+  const progress: ProfileProgress = { sections: 0, approved: 0, pending: 0, outdated: [] };
+  for (const section of profile.sections) {
+    if (section.isHidden) continue;
+    progress.sections += 1;
+    if (section.approved) progress.approved += 1;
+    const status = sectionStatus(section.draft, section.approved);
+    if (status === "draft" || status === "changed") progress.pending += 1;
+    if (section.approved?.facts.status === "outdated") {
+      progress.outdated.push({ key: section.key, title: sectionLabel(section) });
+    }
+  }
+  return progress;
 }

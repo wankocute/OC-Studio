@@ -265,17 +265,4 @@ describe("profile repository", () => {
       profiles.reorderSections(profile.id, next.revision, order.slice(1)),
     ).rejects.toMatchObject({ code: "validation_failed" });
   });
-
-  it("summarises visible and approved sections", async () => {
-    const { character, profile, section } = await setup();
-    await profiles.saveDraft(section.id, doc("x"), 1);
-    await profiles.approve(section.id, 2, snapshot);
-    await profiles.updateSection(profile.id, profile.revision, profile.sections[0]!.id, {
-      isHidden: true,
-    });
-    expect(await profiles.getPrimarySummary(character.id)).toEqual({
-      sections: DEFAULT_PROFILE_TEMPLATE.sections.length - 1,
-      approved: 1,
-    });
-  });
 });

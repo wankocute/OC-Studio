@@ -85,6 +85,15 @@ export const vi = {
     error: "Lỗi kết nối",
     environment: "Môi trường",
     version: "Phiên bản",
+    ai: {
+      label: "Trợ lý AI",
+      providers: { gemini: "Gemini", openai: "OpenAI" },
+      noModel: "chưa đặt model",
+      configured: "Đã cấu hình",
+      notConfigured: "Chưa cấu hình",
+      configuredHint:
+        "Cấu hình trong .env.local hợp lệ — chưa kiểm tra kết nối, quota hay gói sử dụng của project.",
+    },
   },
   characters: {
     title: "Thư viện nhân vật",
@@ -534,6 +543,12 @@ export const vi = {
     sourceFactsLink: "Sửa dữ kiện nguồn",
     summary: (approved: number, total: number) => `${approved}/${total} mục đã duyệt`,
     notStarted: "Chưa bắt đầu hồ sơ.",
+    progress: {
+      pending: (count: number) => `${count} mục có nội dung nháp chưa duyệt`,
+      outdated: (titles: string) =>
+        `Dữ kiện nguồn đã thay đổi sau khi duyệt ở: ${titles}. Nội dung đã duyệt có thể cần xem lại.`,
+      review: "Mở hồ sơ để xem lại",
+    },
     start: {
       title: "Bắt đầu hồ sơ chi tiết",
       body: "Hồ sơ gồm các mục giới thiệu, ngoại hình, tính cách, tâm lý, hành vi, xuất thân, cuộc sống, tiểu sử và quan hệ. Bạn có thể đổi tên, sắp xếp, ẩn mục hoặc thêm mục riêng sau.",
@@ -843,7 +858,9 @@ export const vi = {
     appearanceTitle: "Giao diện",
     appearanceDescription: "Chọn chế độ sáng, tối hoặc theo cài đặt của hệ điều hành.",
     aiTitle: "Trợ lý AI",
-    aiDescription: "Kết nối mô hình AI để hỗ trợ phát triển nhân vật.",
+    aiDescription: "Mô hình AI viết từng mục hồ sơ từ dữ kiện bạn đã nhập.",
+    aiHint:
+      "Cấu hình bằng AI_PROVIDER, GEMINI_API_KEY và GEMINI_MODEL trong .env.local (xem README), rồi khởi động lại server. Key không bao giờ được hiển thị ở đây.",
     languageTitle: "Ngôn ngữ",
     languageDescription: "Ngôn ngữ hiển thị của ứng dụng.",
     languageCurrent: "Tiếng Việt",
