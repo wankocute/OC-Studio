@@ -139,3 +139,44 @@
     cursor: pointer;
   }
 }
+
+/* Profile prose: shared by the rich text editor (ProseMirror) and read-only views. */
+@layer components {
+  .rich-text {
+    @apply text-[0.95rem] leading-7 break-words text-foreground;
+  }
+  .rich-text > * + * {
+    @apply mt-3;
+  }
+  .rich-text h2 {
+    @apply mt-6 font-heading text-xl font-semibold tracking-tight first:mt-0;
+  }
+  .rich-text h3 {
+    @apply mt-5 font-heading text-lg font-semibold first:mt-0;
+  }
+  .rich-text ul {
+    @apply list-disc pl-6;
+  }
+  .rich-text ol {
+    @apply list-decimal pl-6;
+  }
+  .rich-text li > * + * {
+    @apply mt-1;
+  }
+  .rich-text li + li {
+    @apply mt-1;
+  }
+  .rich-text blockquote {
+    @apply border-l-2 border-primary/40 pl-4 text-muted-foreground italic;
+  }
+  .rich-text strong {
+    @apply font-semibold;
+  }
+  .rich-text u {
+    @apply underline-offset-2;
+  }
+  .rich-text .is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-muted-foreground;
+  }
+}

@@ -91,6 +91,9 @@ function SidebarProvider({
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd+B means "bold" while typing in a rich text editor or field: leave it alone.
+      const target = event.target as HTMLElement | null;
+      if (event.defaultPrevented || target?.isContentEditable) return;
       if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         toggleSidebar();

@@ -86,7 +86,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Library field definitions: only compatible edits (`findBreakingChanges`); deprecate instead of delete; keys are never reused.
 - DDL: `pnpm db:generate --name=…`, review the SQL, then `pnpm db:migrate`. Never `drizzle-kit push`, never destructive SQL on databases with data, back up first. Old JSON is migrated on read (in memory) and saved at the current version on the next update.
 - Integration tests only touch databases whose name ends in `_test` (`src/test/test-database.ts` enforces it). Never run them against `DATABASE_URL`.
-- No tables for profiles, AI generations or templates until those are specified.
+- No tables for AI generations or stored templates until those are specified (profiles: TASK 06).
 
 ## Server Actions & UI data flow
 
@@ -109,6 +109,15 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Sheets with `pendingMigration.review` are never saved (editor or basic-info dialog) until the user confirms every item (`migration_review_required`).
 - New ids come from `editor/ids.ts` (random, never from labels). Library definitions: only compatible edits, deprecate instead of delete when used.
 - The page keys `FactEditor` on `id:revision` so a preserved (Activity) editor is replaced when the stored sheet changed.
+
+## Profile Editor
+
+- `/characters/[id]/profile`. Domain in `src/features/profiles/domain/` (content schema `content.ts`, sections/status/fact scope `sections.ts`, import-free `constants.ts` used by the Drizzle schema); repository `server/profile-repository.ts`; actions `actions.ts`; pure workspace reducer `workspace/state.ts`; UI in `components/`. Design: `docs/database-design.md` §13.
+- Content is restricted Tiptap JSON (`richTextDocumentSchema`). The editor's extension set (`rich-text-editor.tsx`) and the schema must stay in sync — a unit test feeds editor output through the schema. Send `plainDocument(editor)` (plain objects), never `editor.getJSON()` directly: ProseMirror attrs have a null prototype and React cannot pass them to a Server Action.
+- Profiles hold prose, never facts: sections name their source fact groups; approvals store only a `FactSnapshot` (fingerprints). Staleness = `assessFactSnapshot` against current fingerprints.
+- The approved version is an immutable `content_revisions` row; only `approve` changes `approved_revision_id`. Drafts autosave per section with `draft_revision`; structure changes use `profiles.revision`. History is recorded at milestones only (see `REVISION_KINDS`), never for unchanged content.
+- Opening the page never writes; the profile is created by an explicit action. Section keys (`ps_<random>`) are permanent; titles are display only.
+- Ctrl/Cmd+B inside a contenteditable is "bold": the sidebar shortcut ignores editable targets.
 
 ## Next.js 16 conventions
 

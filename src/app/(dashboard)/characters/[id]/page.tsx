@@ -1,4 +1,4 @@
-import { ArrowLeft, FileText, Info, LibraryBig, Tag } from "lucide-react";
+import { ArrowLeft, BookOpenText, FileText, Info, LibraryBig, Tag } from "lucide-react";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -24,6 +24,7 @@ import { createCollectionRepository } from "@/features/library/server/collection
 import { createMediaRepository } from "@/features/library/server/media-repository";
 import { createTagRepository } from "@/features/library/server/tag-repository";
 import { AvatarEditor, ReferenceGallery } from "@/features/media/components/character-images";
+import { createProfileRepository } from "@/features/profiles/server/profile-repository";
 import { messages } from "@/i18n";
 import { formatDateTime } from "@/lib/format";
 
@@ -34,15 +35,16 @@ export const metadata: Metadata = { title: t.detailTitle };
 async function loadCharacter(id: string) {
   const db = getDb();
   try {
-    const [record, media, tags, allTags, collections, allCollections] = await Promise.all([
+    const [record, media, tags, allTags, collections, allCollections, profile] = await Promise.all([
       createCharacterRepository(db).getById(id),
       createMediaRepository(db).listForCharacter(id),
       createTagRepository(db).listForCharacter(id),
       createTagRepository(db).list(),
       createCollectionRepository(db).listForCharacter(id),
       createCollectionRepository(db).list(),
+      createProfileRepository(db).getPrimarySummary(id),
     ]);
-    return { record, media, tags, allTags, collections, allCollections };
+    return { record, media, tags, allTags, collections, allCollections, profile };
   } catch (error) {
     if (isRepositoryError(error, "not_found")) notFound();
     throw error;
@@ -52,7 +54,8 @@ async function loadCharacter(id: string) {
 async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]">["params"] }) {
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
-  const { record, media, tags, allTags, collections, allCollections } = await loadCharacter(id);
+  const { record, media, tags, allTags, collections, allCollections, profile } =
+    await loadCharacter(id);
   const { facts } = record;
   const name = facts.displayName;
   const toImage = (item: (typeof media)[number]) => ({
@@ -140,6 +143,29 @@ async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]
             </CardHeader>
             <CardContent>
               <BasicInfoView facts={facts} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-heading text-lg">
+                <BookOpenText className="size-4 text-muted-foreground" aria-hidden />
+                {messages.profiles.title}
+              </CardTitle>
+              <CardDescription>{messages.profiles.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                {profile
+                  ? messages.profiles.summary(profile.approved, profile.sections)
+                  : messages.profiles.notStarted}
+              </p>
+              <Button asChild>
+                <Link href={`/characters/${record.id}/profile` as Route}>
+                  <BookOpenText data-icon="inline-start" aria-hidden />
+                  {messages.profiles.openProfile}
+                </Link>
+              </Button>
             </CardContent>
           </Card>
 

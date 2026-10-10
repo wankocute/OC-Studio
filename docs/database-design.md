@@ -1,12 +1,12 @@
 # Database Design
 
-> TASK 03. PostgreSQL 17 + Drizzle ORM (`pg` driver). Schema: `src/db/schema/`; migrations:
+> TASK 03 (hồ sơ: TASK 06). PostgreSQL 17 + Drizzle ORM (`pg` driver). Schema: `src/db/schema/`; migrations:
 > `src/db/migrations/` (quy trình: [database-migrations.md](./database-migrations.md)).
 > Domain dữ kiện: [character-fact-schema.md](./character-fact-schema.md) (`schemaVersion: 3`).
 
 ## 1. Tổng quan
 
-10 bảng, chỉ phục vụ những nhu cầu đã được xác nhận:
+13 bảng, chỉ phục vụ những nhu cầu đã được xác nhận:
 
 | Bảng                                    | Vai trò                                                                                            |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -18,6 +18,9 @@
 | `character_media`                       | Ảnh nào thuộc OC nào, vai trò (avatar/tham khảo), thứ tự, ảnh chính                                |
 | `tags` / `character_tags`               | Thẻ và liên kết nhiều–nhiều với OC                                                                 |
 | `collections` / `character_collections` | Bộ sưu tập phẳng và liên kết nhiều–nhiều với OC                                                    |
+| `profiles`                              | Hồ sơ văn bản của OC (TASK 06): một hồ sơ chính mỗi OC, `revision` cho cấu trúc mục                |
+| `profile_sections`                      | Mục hồ sơ: tên, thứ tự, ẩn/hiện, nhóm dữ kiện nguồn, bản nháp (Tiptap JSON) và bản đã duyệt        |
+| `content_revisions`                     | Lịch sử nội dung bất biến của từng mục (mốc tự động, duyệt, khôi phục, xung đột)                   |
 
 Định nghĩa trường **riêng của nhân vật** (`custom.*`, `cg_*`) không có bảng riêng: chúng nằm trong `characters.facts.custom` đúng theo domain contract, được validate cùng dữ kiện.
 
@@ -35,6 +38,10 @@ erDiagram
     collections ||--o{ character_collections : contains
     library_field_definitions }o..o{ characters : "facts.values['lib.*'] (không FK)"
     library_field_groups }o..o{ library_field_definitions : "definition.group (không FK)"
+    characters ||--o{ profiles : has
+    profiles ||--o{ profile_sections : contains
+    profile_sections ||--o{ content_revisions : history
+    profile_sections |o--o| content_revisions : "approved_revision_id"
 
     characters {
         uuid id PK
@@ -223,14 +230,16 @@ Ngữ nghĩa soft delete:
 
 ## 9. Transaction và khóa
 
-| Thao tác                                | Transaction | Thứ tự khóa                                                              |
-| --------------------------------------- | ----------- | ------------------------------------------------------------------------ |
-| `create`                                | Có          | định nghĩa `lib.*` dùng (SHARE) → chèn dòng mới → các đích (SHARE)       |
-| `update`                                | Có          | định nghĩa `lib.*` dùng (SHARE) → các đích (SHARE) → dòng nguồn (UPDATE) |
-| `softDelete`                            | Có          | đích (UPDATE) → các nguồn (UPDATE, theo `id`)                            |
-| `updateField` / `deleteUnusedField`     | Có          | dòng định nghĩa (UPDATE)                                                 |
-| `setPrimary` (media)                    | Có          | liên kết ảnh (UPDATE)                                                    |
-| Thao tác một câu lệnh (tag, favourite…) | Ngầm định   | —                                                                        |
+| Thao tác                                 | Transaction | Thứ tự khóa                                                              |
+| ---------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| `create`                                 | Có          | định nghĩa `lib.*` dùng (SHARE) → chèn dòng mới → các đích (SHARE)       |
+| `update`                                 | Có          | định nghĩa `lib.*` dùng (SHARE) → các đích (SHARE) → dòng nguồn (UPDATE) |
+| `softDelete`                             | Có          | đích (UPDATE) → các nguồn (UPDATE, theo `id`)                            |
+| `updateField` / `deleteUnusedField`      | Có          | dòng định nghĩa (UPDATE)                                                 |
+| `setPrimary` (media)                     | Có          | liên kết ảnh (UPDATE)                                                    |
+| Cấu trúc hồ sơ (thêm/đổi tên/sắp xếp/ẩn) | Có          | dòng `profiles` (UPDATE; OC phải chưa bị xóa)                            |
+| Nội dung mục (lưu nháp/duyệt/khôi phục)  | Có          | dòng `profile_sections` (UPDATE)                                         |
+| Thao tác một câu lệnh (tag, favourite…)  | Ngầm định   | —                                                                        |
 
 Lý do thứ tự: `update` khóa đích **trước** khi khóa dòng của chính nó, nên không thể tạo vòng chờ với `softDelete` (khóa đích rồi mới khóa nguồn). Hệ quả: một `update` thêm tham chiếu tới B và một `softDelete(B)` chạy song song luôn kết thúc ở một trong hai trạng thái hợp lệ — update thắng (rồi bị detach bởi delete) hoặc delete thắng (update nhận `reference_target_missing`). Có integration test cho race này.
 
@@ -270,22 +279,43 @@ Lỗi driver được chuyển đổi (23505 → `duplicate`, 40P01/40001 → `c
 | `createCollectionRepository(db)`                           | `create`, `list`, `get`, `listWithCounts`, `count`, `update` (đổi tên/mô tả), `delete` (chỉ xóa bộ sưu tập và liên kết — nhân vật giữ nguyên), `listForCharacter`, `addCharacter`, `removeCharacter`, `listCharacters` |
 | `createMediaRepository(db)`                                | `createAsset`, `getAsset`, `createAndAttach`, `deleteIfUnused`, `attach`, `setPrimary`, `detach`, `listForCharacter`                                                                                                   |
 | `listLibraryCharacters(db, filter)`, `getLibraryStats(db)` | Truy vấn chỉ đọc cho thư viện: tìm theo tên (ILIKE, escape ký tự đại diện), sắp xếp theo tên/ngày tạo/ngày cập nhật, lọc yêu thích/thẻ/bộ sưu tập; kèm avatar, thẻ và tóm tắt                                          |
+| `createProfileRepository(db)` (TASK 06)                    | `getPrimary`, `createPrimary`, `getPrimarySummary`, `addSection`, `updateSection`, `reorderSections`, `getSection`, `getSectionContext`, `saveDraft`, `approve`, `listHistory`, `getRevision`, `restore`               |
 
 Hàm factory nhận `db` (production: `getDb()`; test: database test). Tất cả `import "server-only"`. Từ TASK 04, giao diện gọi chúng qua Server Actions (`src/features/*/actions.ts`); không có REST API.
 
-## 13. Bảng được trì hoãn
+## 13. Hồ sơ nhân vật (TASK 06)
+
+Hồ sơ là **văn bản** viết từ dữ kiện; dữ kiện vẫn chỉ nằm trong `characters.facts`. Hồ sơ không chép giá trị dữ kiện: mỗi mục chỉ ghi tên các nhóm dữ kiện nguồn (`source_groups`), và khi duyệt chỉ lưu **fingerprint** (`FactSnapshot`) của các dữ kiện đó.
+
+| Bảng                | Cột chính / ràng buộc                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `profiles`          | `character_id` FK → `characters` ON DELETE CASCADE; `is_primary`; UNIQUE một hồ sơ chính mỗi OC (partial index); `revision ≥ 1` khóa lạc quan cho **cấu trúc** (thêm, đổi tên, sắp xếp, ẩn/hiện, nhóm nguồn)                                                                                                                                                                                                                              |
+| `profile_sections`  | `key` cố định (khóa mục có sẵn như `appearance`, hoặc `ps_<ngẫu nhiên>`), UNIQUE `(profile_id, key)`; `title` NULL = tên mặc định (đã trim, ≤ 120); `position ≥ 0`; `is_hidden`; `source_groups text[]` (≤ 40); `draft_content jsonb` (NULL hoặc `{"type":"doc"…}`); `draft_revision ≥ 1`; `approved_revision_id` FK tổ hợp `(approved_revision_id, id)` → `content_revisions(id, section_id)` nên bản duyệt chắc chắn thuộc chính mục đó |
+| `content_revisions` | Bất biến. `kind ∈ {autosave, approval, before_restore, restore, conflict}`; `content` (Tiptap JSON), `content_hash`; `restored_from_id`; `fact_snapshot` (chỉ fingerprint, khi duyệt); index `(section_id, created_at DESC)`                                                                                                                                                                                                              |
+
+- **Nội dung:** Tiptap JSON giới hạn (đoạn, tiêu đề cấp 2–3, đậm/nghiêng/gạch chân, danh sách, trích dẫn, xuống dòng) — `richTextDocumentSchema` (`src/features/profiles/domain/content.ts`) từ chối mọi node/mark/thuộc tính khác; ≤ 100 000 ký tự, lồng ≤ 12 cấp. Repository validate ở mọi đường ghi và cả khi đọc.
+- **Bản nháp và bản đã duyệt:** sửa chỉ ghi `draft_content` (`saveDraft(…, expectedDraftRevision)` → `revision_conflict` nếu cũ). Duyệt (`approve(sectionId, expectedDraftRevision, snapshot)`) chép bản nháp **đã lưu** thành một dòng `approval` và trỏ `approved_revision_id` vào đó; nội dung trùng bản đã duyệt ⇒ không ghi gì. Không đường ghi nào sửa bản đã duyệt từ bản nháp.
+- **Lịch sử theo mốc, không theo phím:** `autosave` = bản nháp đã lưu trước đó, ghi khi lần lưu mới đến sau ≥ 15 phút ngừng sửa (hoặc mục lịch sử gần nhất đã cũ ≥ 15 phút); `before_restore` + `restore` khi khôi phục; `conflict` = bản mới hơn từ tab khác bị thay khi người dùng chọn "Giữ bản của tôi". Không ghi nếu nội dung trùng mục lịch sử gần nhất hoặc bản nháp trống. Khôi phục không đổi bản đã duyệt.
+- **Mỗi mục khóa riêng** (`draft_revision`), nên sửa hai mục ở hai tab không xung đột; cấu trúc dùng `profiles.revision`.
+- **Phát hiện lỗi thời:** trang hồ sơ so `fact_snapshot` của bản đã duyệt với fingerprint hiện tại (`assessFactSnapshot`) và báo các dữ kiện nguồn đã đổi. TASK 07 dùng cùng cơ chế cho ứng viên AI.
+- **Tạo hồ sơ** là thao tác rõ ràng (nút "Tạo hồ sơ"); mở trang không ghi gì. `createPrimary` an toàn khi bấm đồng thời (ON CONFLICT trên index hồ sơ chính).
+- **Khóa:** cấu trúc — dòng `profiles` (UPDATE); nội dung — dòng `profile_sections` (UPDATE); cả hai đều chỉ trên OC chưa bị xóa.
+
+### Điểm mở rộng cho TASK 07 (chưa triển khai)
+
+Ứng viên AI dự kiến là một `kind` mới của `content_revisions` (hoặc bảng `ai_generations` riêng) mang `fact_snapshot` + phạm vi dữ kiện đã gửi (`selectFactsForAi`); duyệt ứng viên = ghi nó thành bản nháp/bản duyệt qua cùng các đường `saveDraft`/`approve`, nên nội dung sửa tay vẫn nằm trong lịch sử. TASK 06 không gọi AI và không tạo bảng/cột giữ chỗ cho AI.
+
+## 14. Bảng được trì hoãn
 
 Không tạo bảng, cột hay JSON giữ chỗ cho các phần chưa được đặc tả:
 
-| Dự kiến                        | Quan hệ dự kiến (chỉ ghi nhận)                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `profiles`, `profile_sections` | Một OC có nhiều hồ sơ biên tập; mỗi phần lưu fact snapshot (`createFactSnapshot`) để phát hiện lỗi thời |
-| `content_revisions`            | Lịch sử phiên bản nội dung hồ sơ                                                                        |
-| `ai_generations`               | Lần gọi AI: OC, phạm vi dữ kiện, quyền nhạy cảm đã cấp _cho lần đó_, snapshot fingerprint               |
-| `profile_templates`            | Lưu `TemplatePresentation`, tham chiếu `lib.*`                                                          |
-| `pdf_templates`                | Mẫu xuất PDF                                                                                            |
+| Dự kiến             | Quan hệ dự kiến (chỉ ghi nhận)                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| `ai_generations`    | Lần gọi AI: OC, phạm vi dữ kiện, quyền nhạy cảm đã cấp _cho lần đó_, snapshot fingerprint        |
+| `profile_templates` | Mẫu hồ sơ do người dùng lưu (TASK 06 chỉ có mẫu mặc định trong code: `DEFAULT_PROFILE_TEMPLATE`) |
+| `pdf_templates`     | Mẫu xuất PDF                                                                                     |
 
-## 14. Quyết định và đánh đổi
+## 15. Quyết định và đánh đổi
 
 | Quyết định                                                    | Ưu                                                                                            | Nhược                                                       |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |

@@ -13,6 +13,7 @@ import {
 } from "@/features/characters/domain";
 import { loadLatestCharacterAction } from "@/features/characters/editor-actions";
 import { useIsClient } from "@/hooks/use-is-client";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-guard";
 import { emptyObjectItem, factToDraft, type FieldDraft } from "@/features/characters/editor/drafts";
 import {
   createEditorState,
@@ -49,7 +50,6 @@ import { GroupPanel, RELATIONSHIPS_KEY, sectionDomId } from "./group-panel";
 import { ReviewPanel } from "./review-panel";
 import { useAutosave } from "./use-autosave";
 import { useEditorMode } from "./use-editor-mode";
-import { useUnsavedChangesGuard } from "./use-unsaved-guard";
 
 const t = messages.editor;
 

@@ -43,9 +43,10 @@ select table_name from information_schema.tables where table_schema = 'public' o
 
 Danh sách migration hiện có:
 
-| File                      | Nội dung                                                                                                                     |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `0000_initial_schema.sql` | Tạo 10 bảng của TASK 03 với PK, FK, CHECK và index. Chỉ `CREATE` / `ALTER TABLE … ADD CONSTRAINT`; không có câu lệnh phá hủy |
+| File                      | Nội dung                                                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0000_initial_schema.sql` | Tạo 10 bảng của TASK 03 với PK, FK, CHECK và index. Chỉ `CREATE` / `ALTER TABLE … ADD CONSTRAINT`; không có câu lệnh phá hủy                  |
+| `0001_profiles.sql`       | TASK 06: thêm `profiles`, `profile_sections`, `content_revisions`. Chỉ `CREATE TABLE` / `ADD CONSTRAINT` / `CREATE INDEX`, không đụng bảng cũ |
 
 ## 3. Sao lưu và khôi phục
 

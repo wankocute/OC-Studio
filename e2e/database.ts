@@ -62,3 +62,51 @@ export async function readCharacter(id: string): Promise<StoredCharacter> {
     facts: row.facts,
   };
 }
+
+export type StoredSection = {
+  id: string;
+  key: string;
+  title: string | null;
+  position: number;
+  isHidden: boolean;
+  draft: unknown;
+  draftRevision: number;
+  approved: unknown;
+};
+
+/** Sections of the character's primary profile, in display order. */
+export async function readProfileSections(characterId: string): Promise<StoredSection[]> {
+  const { rows } = await (
+    await database()
+  ).query(
+    `select s.id, s.key, s.title, s.position, s.is_hidden, s.draft_content, s.draft_revision,
+            r.content as approved
+       from profile_sections s
+       join profiles p on p.id = s.profile_id
+       left join content_revisions r on r.id = s.approved_revision_id
+      where p.character_id = $1 and p.is_primary
+      order by s.position`,
+    [characterId],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    key: row.key,
+    title: row.title,
+    position: row.position,
+    isHidden: row.is_hidden,
+    draft: row.draft_content,
+    draftRevision: row.draft_revision,
+    approved: row.approved,
+  }));
+}
+
+/** History kinds of a section, most recent first. */
+export async function readRevisionKinds(sectionId: string): Promise<string[]> {
+  const { rows } = await (
+    await database()
+  ).query<{ kind: string }>(
+    "select kind from content_revisions where section_id = $1 order by created_at desc, id desc",
+    [sectionId],
+  );
+  return rows.map((row) => row.kind);
+}
