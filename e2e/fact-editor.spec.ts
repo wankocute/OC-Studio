@@ -695,3 +695,61 @@ test("moves between the fact editor and the profile, guarding unsaved input", as
   await expect(page.locator(READY)).toBeVisible();
   expect((await readCharacter(id)).facts.values["identity.full_name"]?.value).toBe("Chưa lưu được");
 });
+
+test("dragging a field to the bin clears only its value; Escape or a miss changes nothing", async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  test.skip(isMobile, "Drag to the bin is a desktop pointer gesture.");
+  const id = await insertCharacter(uniqueName("Thùng rác", testInfo.project.name));
+  await openEditor(page, id);
+  await goToGroup(page, "Định danh", isMobile);
+
+  const fullName = field(page, "Họ tên đầy đủ");
+  const handle = fullName.locator("[data-field-drag-handle]");
+  const bin = page.locator("[data-field-bin]");
+  // A field without a value has nothing to drag.
+  await expect(handle).toHaveCount(0);
+
+  await textbox(page, "Họ tên đầy đủ").fill("Lâm Thanh Vân");
+  await textbox(page, "Tuổi").fill("27");
+  await expectSaved(page);
+
+  const viewport = page.viewportSize()!;
+  const binCenter = { x: viewport.width - 24 - 56, y: viewport.height - 24 - 56 };
+  const lift = async () => {
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 40, box.y + 30, { steps: 4 });
+    await expect(bin).toBeVisible();
+  };
+
+  // Escape cancels.
+  await lift();
+  await page.mouse.move(binCenter.x, binCenter.y, { steps: 10 });
+  await expect(bin).toHaveAttribute("data-field-bin", "over");
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await expect(bin).toHaveCount(0);
+  await expect(textbox(page, "Họ tên đầy đủ")).toHaveValue("Lâm Thanh Vân");
+
+  // Dropping outside the bin cancels.
+  await lift();
+  await page.mouse.move(viewport.width / 3, viewport.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect(bin).toHaveCount(0);
+  await expect(textbox(page, "Họ tên đầy đủ")).toHaveValue("Lâm Thanh Vân");
+
+  // Dropping on the bin clears the value, keeps the field and every other fact.
+  await lift();
+  await page.mouse.move(binCenter.x, binCenter.y, { steps: 10 });
+  await page.mouse.up();
+  await expect(bin).toHaveCount(0);
+  await expect(textbox(page, "Họ tên đầy đủ")).toHaveValue("");
+  await expect(page.getByText("Đã xóa giá trị của “Họ tên đầy đủ”.")).toBeVisible();
+  await expectSaved(page);
+  const stored = await readCharacter(id);
+  expect(stored.facts.values["identity.full_name"]).toBeUndefined();
+  expect(stored.facts.values["identity.age"]?.value).toEqual({ value: 27, unit: "years" });
+});

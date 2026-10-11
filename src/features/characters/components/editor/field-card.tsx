@@ -1,7 +1,7 @@
 "use client";
 
 import { Ban, CircleSlash, History, MoreHorizontal, ShieldAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 
 import { useEditorContext } from "./editor-context";
 import { FieldMessage } from "./field-message";
+import { FieldShredHandle } from "./field-shredder";
 import { hasSingleControl, LeafInput } from "./leaf-input";
 import type { ItemSensitivity } from "./list-inputs";
 import { ObjectInput, ObjectListInput } from "./object-inputs";
@@ -228,7 +229,8 @@ export function FieldCard({
   /** Extra content under the input (e.g. relationship suggestions). */
   children?: ReactNode;
 }) {
-  const { errors, reviewKeys, idPrefix } = useEditorContext();
+  const { errors, reviewKeys, idPrefix, nameOf } = useEditorContext();
+  const [lifted, setLifted] = useState(false);
   const domId = fieldDomId(idPrefix, field.key);
   const inputId = `${domId}-input`;
   const labelId = `${domId}-label`;
@@ -242,6 +244,7 @@ export function FieldCard({
     hasSingleControl(field.definition.kind);
   const hint = field.description ?? t.kindHints[field.definition.kind];
 
+  const canClear = stored !== undefined || draft.state !== "value";
   const clear = () => {
     const previous = draft;
     onChange({ state: "value", value: emptyValueDraft(field.definition), sensitiveItemIds: [] });
@@ -257,8 +260,9 @@ export function FieldCard({
       aria-labelledby={labelId}
       data-field-key={field.key}
       className={cn(
-        "scroll-mt-32 space-y-3 rounded-xl border bg-card p-4",
+        "group/field scroll-mt-32 space-y-3 rounded-xl border bg-card p-4 transition-opacity duration-200",
         error ? "border-destructive/40" : "border-border/80",
+        lifted && "opacity-50",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -271,13 +275,25 @@ export function FieldCard({
           </div>
           {hint && <FieldMessage id={hintId} tone="hint" message={hint} />}
         </div>
-        <StateMenu
-          field={field}
-          draft={draft}
-          canClear={stored !== undefined || draft.state !== "value"}
-          onState={(state) => onChange({ ...draft, state })}
-          onClear={clear}
-        />
+        <div className="flex shrink-0 items-center gap-0.5">
+          {/* Only a field with something to clear can be dragged to the bin; the handle stays
+              while its drop animation runs, after the value is already gone. */}
+          {(canClear || lifted) && (
+            <FieldShredHandle
+              label={field.label}
+              summary={summarizeFact(field.definition, stored, nameOf)}
+              onShred={clear}
+              onLiftChange={setLifted}
+            />
+          )}
+          <StateMenu
+            field={field}
+            draft={draft}
+            canClear={canClear}
+            onState={(state) => onChange({ ...draft, state })}
+            onClear={clear}
+          />
+        </div>
       </div>
 
       {draft.state === "value" ? (

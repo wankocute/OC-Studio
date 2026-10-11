@@ -274,6 +274,11 @@ export const vi = {
       cleared: (label: string) => `Đã xóa giá trị của “${label}”.`,
       undo: "Hoàn tác",
     },
+    shredder: {
+      handle: "Kéo vào thùng rác để xóa giá trị (Esc để hủy)",
+      dropHere: "Kéo vào đây để xóa",
+      release: "Thả để xóa",
+    },
     badges: {
       sensitive: "Nhạy cảm",
       sensitiveHint:
