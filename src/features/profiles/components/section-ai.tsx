@@ -31,7 +31,7 @@ import {
 import type { AiJobView } from "../ai/service";
 import type { SectionDraftState } from "../workspace/state";
 import type { RestoredView } from "../actions";
-import { RichTextView } from "./rich-text-view";
+import { TypewriterRichText } from "./typewriter-rich-text";
 import { isActiveJob } from "./use-ai-jobs";
 
 const t = messages.profileAi;
@@ -206,7 +206,7 @@ export function SectionAi({
                 {t.job.expiresAt(timeFormat.format(new Date(result.expiresAt)))}
               </p>
               <div className="rounded-lg border p-3" data-testid="ai-candidate">
-                <RichTextView content={result.content} />
+                <TypewriterRichText jobId={job?.id ?? result.token} content={result.content} />
               </div>
               {result.stale && (
                 <>

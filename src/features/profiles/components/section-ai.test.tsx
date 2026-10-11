@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { messages } from "@/i18n";
 import type { AiJobView } from "../ai/service";
 import { createWorkspaceState, type SectionDraftState } from "../workspace/state";
+import { markForTyping } from "./rich-text-typing";
 import { SectionAi } from "./section-ai";
 import { AI_POLL_INTERVAL_MS, useAiJobs } from "./use-ai-jobs";
 import {
@@ -187,6 +188,35 @@ describe("section AI dialog", () => {
     expect(await screen.findByText("Đề xuất.")).toBeVisible();
     expect(onApplied).not.toHaveBeenCalled();
     expect(applySectionAiAction).not.toHaveBeenCalled();
+  });
+
+  it("types a fresh suggestion once, can show it all at once, and never replays it", async () => {
+    const finished = job({
+      status: "succeeded",
+      result: {
+        token: "00000000-0000-4000-8000-0000000000cc",
+        content: {
+          type: "doc",
+          content: [{ type: "paragraph", content: [{ type: "text", text: "Một câu khá dài." }] }],
+        },
+        stale: false,
+        draftRevision: 1,
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+      },
+    });
+    markForTyping(finished.id);
+    render(<Harness initialJob={finished} />);
+    fireEvent.click(screen.getByRole("button", { name: t.job.ready }));
+    fireEvent.click(await screen.findByRole("button", { name: t.showAll }));
+    const candidate = screen.getByTestId("ai-candidate");
+    expect(candidate.textContent).toBe("Một câu khá dài.");
+    expect(screen.queryByRole("button", { name: t.showAll })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: t.job.ready }));
+    expect(await screen.findByTestId("ai-candidate")).toHaveTextContent("Một câu khá dài.");
+    expect(screen.queryByRole("button", { name: t.showAll })).not.toBeInTheDocument();
   });
 
   it("shows why a job failed and offers to start over", async () => {

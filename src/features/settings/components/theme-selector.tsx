@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useIsClient } from "@/hooks/use-is-client";
 import { messages } from "@/i18n";
+import { switchTheme } from "@/lib/theme-transition";
 
 import { isThemePreference, themeOptions } from "../theme-options";
 
@@ -19,7 +20,8 @@ export function ThemeSelector() {
       // Theme is only known on the client; keep the group empty until hydration to avoid a mismatch.
       value={isClient ? (theme ?? "system") : ""}
       onValueChange={(value) => {
-        if (isThemePreference(value)) setTheme(value);
+        if (isThemePreference(value))
+          switchTheme(value, setTheme, document.getElementById(`theme-${value}`));
       }}
       className="grid gap-3 sm:grid-cols-3"
     >

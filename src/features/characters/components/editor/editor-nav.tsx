@@ -6,6 +6,7 @@ import { useId, useState } from "react";
 
 import { Collapse } from "@/components/shared/collapse";
 import type { EditorField, EditorGroup } from "@/features/characters/editor/layout";
+import { useLineNav } from "@/hooks/use-line-nav";
 import { messages } from "@/i18n";
 import { MOTION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -60,10 +61,11 @@ export function buildNavEntries(
 }
 
 function EntryIcon({ entry }: { entry: NavEntry }) {
-  if (entry.id === GENERAL_SECTION) return <Settings2 className="size-4" aria-hidden />;
-  if (entry.id === CUSTOM_SECTION) return <Shapes className="size-4" aria-hidden />;
+  if (entry.id === GENERAL_SECTION)
+    return <Settings2 className="line-nav-shift size-4" aria-hidden />;
+  if (entry.id === CUSTOM_SECTION) return <Shapes className="line-nav-shift size-4" aria-hidden />;
   if (entry.id === REVIEW_SECTION)
-    return <TriangleAlert className="size-4 text-warning" aria-hidden />;
+    return <TriangleAlert className="line-nav-shift size-4 text-warning" aria-hidden />;
   return null;
 }
 
@@ -82,6 +84,7 @@ export function EditorNav({
   const prefix = useId();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [mobileOpen, setMobileOpen] = useState(false);
+  const lineNav = useLineNav<HTMLUListElement>();
   const toggle = (id: string) =>
     setExpanded((current) => {
       const next = new Set(current);
@@ -103,13 +106,14 @@ export function EditorNav({
         <div className="flex items-center">
           <button
             type="button"
+            data-line-item
             aria-current={selected(entry) ? "location" : undefined}
             onClick={() => {
               setMobileOpen(false);
               onSelect(owner, top ? undefined : entry.sectionId, entry.fieldKey);
             }}
             className={cn(
-              "relative isolate flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors duration-(--duration-fast) outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.99]",
+              "line-nav-item relative isolate flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors duration-(--duration-fast) outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.99]",
               selected(entry)
                 ? "font-medium text-accent-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -125,8 +129,9 @@ export function EditorNav({
                 transition={MOTION.indicator}
               />
             )}
+            <span className="line-nav-marker" aria-hidden />
             <EntryIcon entry={entry} />
-            <span className="min-w-0 break-words">{entry.label}</span>
+            <span className="line-nav-shift min-w-0 break-words">{entry.label}</span>
             {entry.count ? (
               <span className="ml-auto rounded-full bg-background/80 px-1.5 text-xs tabular-nums ring-1 ring-border">
                 {entry.count}
@@ -182,6 +187,7 @@ export function EditorNav({
           />
         </button>
         <ul
+          ref={lineNav}
           id={`${prefix}-navigation`}
           className={cn(
             "max-h-[60dvh] space-y-0.5 overflow-y-auto lg:max-h-none lg:overflow-visible",

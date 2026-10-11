@@ -26,15 +26,17 @@ import {
   secondaryNavigation,
   type NavItem,
 } from "@/config/navigation";
+import { useLineNav } from "@/hooks/use-line-nav";
 import { messages } from "@/i18n";
 import { MOTION } from "@/lib/motion";
 
 /** `pathname` is `null` in the prerendered fallback (no item highlighted yet). */
 function NavMenuItems({ items, pathname }: { items: readonly NavItem[]; pathname: string | null }) {
   const { isMobile, setOpenMobile } = useSidebar();
+  const lineNav = useLineNav<HTMLUListElement>();
 
   return (
-    <SidebarMenu>
+    <SidebarMenu ref={lineNav}>
       {items.map((item) => {
         const active = pathname !== null && isNavItemActive(item, pathname);
         return (
@@ -44,9 +46,10 @@ function NavMenuItems({ items, pathname }: { items: readonly NavItem[]; pathname
               isActive={active}
               tooltip={item.label}
               // The sliding highlight below replaces the static active background.
-              className="relative isolate data-[active=true]:bg-transparent"
+              className="line-nav-item relative isolate data-[active=true]:bg-transparent"
             >
               <Link
+                data-line-item
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 onClick={() => {
@@ -62,8 +65,9 @@ function NavMenuItems({ items, pathname }: { items: readonly NavItem[]; pathname
                     transition={MOTION.indicator}
                   />
                 )}
-                <item.icon aria-hidden />
-                <span>{item.label}</span>
+                <span className="line-nav-marker" aria-hidden />
+                <item.icon className="line-nav-shift" aria-hidden />
+                <span className="line-nav-shift">{item.label}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

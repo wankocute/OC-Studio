@@ -6,6 +6,8 @@ import { getSectionAiJobsAction } from "@/features/profiles/ai/actions";
 import type { AiJobView } from "@/features/profiles/ai/service";
 import { messages } from "@/i18n";
 
+import { markForTyping } from "./rich-text-typing";
+
 /** How often active jobs are checked. Each check only reads the database. */
 export const AI_POLL_INTERVAL_MS = 3_000;
 /** After the server's deadline, a job still reported as running is treated as lost. */
@@ -82,7 +84,12 @@ export function useAiJobs(
         }
         return next;
       });
-      for (const job of updates) if (!isActiveJob(job)) finishedRef.current(job);
+      for (const job of updates) {
+        if (isActiveJob(job)) continue;
+        // Seen finishing live: its text is typed out the first time it is shown.
+        if (job.status === "succeeded") markForTyping(job.id);
+        finishedRef.current(job);
+      }
     }, AI_POLL_INTERVAL_MS);
     return () => {
       stopped = true;

@@ -158,6 +158,17 @@
  */
 @theme {
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Typing caret of AI text (`TypewriterRichText`). */
+  --animate-caret-blink: caret-blink 1s ease-in-out infinite;
+  @keyframes caret-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
 }
 :root {
   --duration-fast: 150ms;
@@ -211,11 +222,67 @@ html.lenis body {
   object-fit: none;
   object-position: left top;
 }
+/*
+ * Theme switch (`switchTheme`): the new theme is revealed by a growing circle animated from JS;
+ * the default cross-fade is turned off so the old theme never blends with the new one.
+ */
+:root[data-theme-transition="active"]::view-transition-old(root),
+:root[data-theme-transition="active"]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root[data-theme-transition="active"]::view-transition-new(root) {
+  clip-path: var(--theme-reveal-from);
+}
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+}
+
+/*
+ * Line navigation (`useLineNav`, after React Bits' Line Sidebar). `--line-e` (0–1) is written by
+ * JS as the pointer nears an item; the current item is held at 1. Only transforms, colour and
+ * opacity change, so items never resize or push their neighbours, and nothing depends on hover.
+ */
+@layer components {
+  .line-nav-item {
+    --line-shift: 4px;
+    --line-level: max(var(--line-e, 0), var(--line-active, 0));
+  }
+  .line-nav-item[aria-current] {
+    --line-active: 1;
+  }
+  .line-nav-shift {
+    transform: translateX(calc(var(--line-level) * var(--line-shift)));
+    color: color-mix(in oklab, var(--primary) calc(var(--line-level) * 35%), currentColor);
+  }
+  .line-nav-marker {
+    position: absolute;
+    top: 50%;
+    left: 1px;
+    width: 0.375rem;
+    height: 1.5px;
+    border-radius: 1px;
+    background: var(--primary);
+    opacity: var(--line-level);
+    transform: translateY(-50%) scaleX(var(--line-level));
+    transform-origin: left;
+    pointer-events: none;
+  }
+  /* Icon-only sidebar: nothing to slide, the icons stay centred. */
+  [data-collapsible="icon"] .line-nav-item {
+    --line-shift: 0px;
+  }
+  [data-collapsible="icon"] .line-nav-marker {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .line-nav-item {
+      --line-shift: 0px;
+    }
   }
 }
 

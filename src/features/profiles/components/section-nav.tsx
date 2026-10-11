@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import type { SectionStatus } from "@/features/profiles/domain";
 import { sectionLabel, type SectionStructureView } from "@/features/profiles/view";
+import { useLineNav } from "@/hooks/use-line-nav";
 import { messages } from "@/i18n";
 import { MOTION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -49,9 +50,15 @@ export const STATUS_ICON: Record<SectionStatus, { icon: LucideIcon; className: s
   changed: { icon: CircleDot, className: "text-primary" },
 };
 
-export function SectionStatusIcon({ status }: { status: SectionStatus }) {
+export function SectionStatusIcon({
+  status,
+  className: extra,
+}: {
+  status: SectionStatus;
+  className?: string;
+}) {
   const { icon: Icon, className } = STATUS_ICON[status];
-  return <Icon className={cn("size-4 shrink-0", className)} aria-hidden />;
+  return <Icon className={cn("size-4 shrink-0", className, extra)} aria-hidden />;
 }
 
 export type SectionCommands = {
@@ -141,6 +148,7 @@ export function SectionNav({
   const navScope = useId();
   const active = sections.find((section) => section.id === activeId);
   const activeIndex = sections.findIndex((section) => section.id === activeId);
+  const lineNav = useLineNav<HTMLUListElement>();
 
   return (
     <>
@@ -188,7 +196,7 @@ export function SectionNav({
 
       <nav aria-label={t.sections} className="hidden lg:block">
         <LayoutGroup id={navScope}>
-          <ul className="space-y-0.5">
+          <ul className="space-y-0.5" ref={lineNav}>
             {sections.map((section, index) => {
               const isActive = section.id === activeId;
               const status = statuses[section.id] ?? "empty";
@@ -196,10 +204,11 @@ export function SectionNav({
                 <li key={section.id} className="group/section flex items-center gap-0.5">
                   <button
                     type="button"
+                    data-line-item
                     aria-current={isActive ? "page" : undefined}
                     onClick={() => onSelect(section.id)}
                     className={cn(
-                      "relative isolate flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors duration-(--duration-fast) outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.99]",
+                      "line-nav-item relative isolate flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors duration-(--duration-fast) outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.99]",
                       isActive
                         ? "font-medium text-accent-foreground"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -215,8 +224,9 @@ export function SectionNav({
                         transition={MOTION.indicator}
                       />
                     )}
-                    <SectionStatusIcon status={status} />
-                    <span className="truncate">{sectionLabel(section)}</span>
+                    <span className="line-nav-marker" aria-hidden />
+                    <SectionStatusIcon status={status} className="line-nav-shift" />
+                    <span className="line-nav-shift truncate">{sectionLabel(section)}</span>
                     <span className="sr-only">
                       {` — ${t.sectionStatus[status]}`}
                       {section.isHidden ? ` — ${t.hiddenBadge}` : ""}

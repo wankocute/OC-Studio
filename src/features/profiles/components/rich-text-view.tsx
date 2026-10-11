@@ -23,35 +23,64 @@ function renderInline(inline: RichTextInline, key: number): ReactNode {
   return <span key={key}>{node}</span>;
 }
 
-function renderBlock(block: RichTextBlock | RichTextListItem, key: number): ReactNode {
+/** `tail` is rendered after the last text of the block (e.g. a typing caret). */
+function renderBlock(
+  block: RichTextBlock | RichTextListItem,
+  key: number,
+  tail?: ReactNode,
+): ReactNode {
+  const children = (items: readonly (RichTextBlock | RichTextListItem)[]) =>
+    items.map((child, index) =>
+      renderBlock(child, index, index === items.length - 1 ? tail : undefined),
+    );
   switch (block.type) {
     case "paragraph":
-      return <p key={key}>{block.content?.map(renderInline)}</p>;
+      return (
+        <p key={key}>
+          {block.content?.map(renderInline)}
+          {tail}
+        </p>
+      );
     case "heading": {
       const Heading = block.attrs.level === 2 ? "h2" : "h3";
-      return <Heading key={key}>{block.content?.map(renderInline)}</Heading>;
+      return (
+        <Heading key={key}>
+          {block.content?.map(renderInline)}
+          {tail}
+        </Heading>
+      );
     }
     case "blockquote":
-      return <blockquote key={key}>{block.content.map(renderBlock)}</blockquote>;
+      return <blockquote key={key}>{children(block.content)}</blockquote>;
     case "bulletList":
-      return <ul key={key}>{block.content.map(renderBlock)}</ul>;
+      return <ul key={key}>{children(block.content)}</ul>;
     case "orderedList":
       return (
         <ol key={key} start={block.attrs?.start ?? undefined}>
-          {block.content.map(renderBlock)}
+          {children(block.content)}
         </ol>
       );
     case "listItem":
-      return <li key={key}>{block.content.map(renderBlock)}</li>;
+      return <li key={key}>{children(block.content)}</li>;
   }
 }
 
 export function RichTextView({
   content,
   className,
+  tail,
 }: {
   content: RichTextDocument;
   className?: string;
+  /** Rendered after the last text of the document. */
+  tail?: ReactNode;
 }) {
-  return <div className={cn("rich-text", className)}>{content.content.map(renderBlock)}</div>;
+  const blocks = content.content;
+  return (
+    <div className={cn("rich-text", className)}>
+      {blocks.map((block, index) =>
+        renderBlock(block, index, index === blocks.length - 1 ? tail : undefined),
+      )}
+    </div>
+  );
 }

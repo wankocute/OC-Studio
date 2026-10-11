@@ -938,6 +938,7 @@ export const vi = {
     apply: "Dùng làm bản nháp",
     discard: "Bỏ qua",
     candidate: "Nội dung đề xuất",
+    showAll: "Hiện toàn bộ",
     stale: "Dữ kiện đã đổi. Đề xuất này có thể lỗi thời; hãy xem lại trước khi áp dụng.",
     confirmStale: "Tôi đã xem lại và chấp nhận đề xuất có thể lỗi thời",
     draftChanged: "Bản nháp đã đổi. Đề xuất được giữ để xem, hãy tạo lại từ bản nháp hiện tại.",
