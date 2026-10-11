@@ -16,8 +16,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { FadeIn } from "@/components/shared/fade-in";
+import { SegmentedControl } from "@/components/shared/segmented-control";
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { approveSectionAction, type RestoredView } from "@/features/profiles/actions";
 import type { SourceGroupOption } from "@/features/profiles/fact-sources";
 import { sectionLabel, type SectionStructureView } from "@/features/profiles/view";
@@ -247,17 +248,15 @@ export function SectionPanel({
             <span data-testid="section-status">{t.sectionStatus[status]}</span>
           </p>
         </div>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          aria-label={t.version.label}
+        <SegmentedControl<Version>
+          ariaLabel={t.version.label}
           value={version}
-          onValueChange={(next) => next && setVersion(next as Version)}
-        >
-          <ToggleGroupItem value="draft">{t.version.draft}</ToggleGroupItem>
-          <ToggleGroupItem value="approved">{t.version.approved}</ToggleGroupItem>
-        </ToggleGroup>
+          onValueChange={(next) => next && setVersion(next)}
+          options={[
+            { value: "draft", label: t.version.draft },
+            { value: "approved", label: t.version.approved },
+          ]}
+        />
       </div>
 
       {section.isHidden && (
@@ -279,7 +278,7 @@ export function SectionPanel({
       <FactsNotice draft={draft} />
 
       {version === "draft" ? (
-        <div className="space-y-2">
+        <FadeIn key="draft" className="space-y-2">
           <RichTextEditor
             // A new editor when the content is replaced from outside (restore, latest version).
             key={`${section.id}:${draft.resetCount}`}
@@ -298,9 +297,9 @@ export function SectionPanel({
               ))}
             </ul>
           )}
-        </div>
+        </FadeIn>
       ) : (
-        <div className="space-y-3">
+        <FadeIn key="approved" className="space-y-3">
           {draft.approved ? (
             <>
               <p className="text-sm text-muted-foreground">
@@ -316,7 +315,7 @@ export function SectionPanel({
               {t.approvedEmpty}
             </p>
           )}
-        </div>
+        </FadeIn>
       )}
 
       <div className="flex flex-wrap items-start gap-3 border-t pt-4">

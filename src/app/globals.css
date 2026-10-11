@@ -152,6 +152,111 @@
   }
 }
 
+/*
+ * Motion. Same timing as `src/lib/motion.ts` (Motion animations), for CSS transitions:
+ * `duration-(--duration-fast)` and `ease-soft`.
+ */
+@theme {
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+:root {
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 280ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}
+
+/* Smooth wheel scrolling (Lenis, see `SmoothScroll`); its stylesheet, inlined. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/*
+ * View transitions (React <ViewTransition>, library layout changes). The snapshot layer never
+ * takes clicks — the live page underneath stays usable while it plays.
+ */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(.oc-move) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-soft);
+  overflow: clip;
+  border-radius: var(--radius-xl);
+}
+::view-transition-old(.oc-move),
+::view-transition-new(.oc-move) {
+  animation-duration: var(--duration-base);
+  /* Cards change shape between grid and list: fade the snapshots instead of stretching them. */
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/*
+ * Reference gallery masonry (see `src/features/media/masonry.ts`). Each tile carries its column
+ * and offset for every column count as custom properties; the container query picks the set.
+ */
+@layer components {
+  .masonry {
+    --gap: 0.75rem;
+    --cols: 2;
+    --col: calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols));
+    position: relative;
+    height: var(--h2);
+    transition: height var(--duration-slow) var(--ease-soft);
+  }
+  .masonry > li {
+    --c: var(--c2);
+    --r: var(--r2);
+    --n: var(--n2);
+    position: absolute;
+    width: var(--col);
+    left: calc(var(--c) * (var(--col) + var(--gap)));
+    top: calc(var(--r) * var(--col) + var(--n) * var(--gap));
+    transition-property: left, top, width;
+    transition-duration: var(--duration-slow);
+    transition-timing-function: var(--ease-soft);
+  }
+  @container (min-width: 28rem) {
+    .masonry {
+      --cols: 3;
+      height: var(--h3);
+    }
+    .masonry > li {
+      --c: var(--c3);
+      --r: var(--r3);
+      --n: var(--n3);
+    }
+  }
+}
+
 /* Profile prose: shared by the rich text editor (ProseMirror) and read-only views. */
 @layer components {
   .rich-text {

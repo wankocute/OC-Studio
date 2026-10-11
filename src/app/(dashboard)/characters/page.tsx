@@ -80,7 +80,7 @@ async function Library({
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {t.resultCount(characters.length)}
           </p>
-          <CharacterList characters={characters} view={params.view} />
+          <CharacterList characters={characters} view={params.view} layoutTransitions />
         </section>
       )}
     </div>

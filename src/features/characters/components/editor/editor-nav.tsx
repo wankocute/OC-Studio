@@ -1,9 +1,13 @@
 "use client";
 
 import { ChevronRight, Settings2, Shapes, TriangleAlert } from "lucide-react";
+import { LayoutGroup, motion } from "motion/react";
 import { useId, useState } from "react";
+
+import { Collapse } from "@/components/shared/collapse";
 import type { EditorField, EditorGroup } from "@/features/characters/editor/layout";
 import { messages } from "@/i18n";
+import { MOTION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 const t = messages.editor.nav;
@@ -105,12 +109,22 @@ export function EditorNav({
               onSelect(owner, top ? undefined : entry.sectionId, entry.fieldKey);
             }}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              "relative isolate flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors duration-(--duration-fast) outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.99]",
               selected(entry)
-                ? "bg-accent font-medium text-accent-foreground"
+                ? "font-medium text-accent-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
+            {selected(entry) && (
+              // One highlight that slides to the selected entry (shared layout, scoped per nav).
+              <motion.span
+                layoutId="editor-nav-active"
+                aria-hidden
+                className="absolute inset-0 -z-10 bg-accent"
+                style={{ borderRadius: 8 }}
+                transition={MOTION.indicator}
+              />
+            )}
             <EntryIcon entry={entry} />
             <span className="min-w-0 break-words">{entry.label}</span>
             {entry.count ? (
@@ -126,44 +140,57 @@ export function EditorNav({
               aria-controls={bodyId}
               aria-label={isExpanded ? t.collapse(entry.label) : t.expand(entry.label)}
               onClick={() => toggle(entry.id)}
-              className="shrink-0 rounded-md p-2 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors duration-(--duration-fast) outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-muted/70"
             >
               <ChevronRight
-                className={cn("size-4 transition-transform", isExpanded && "rotate-90")}
+                className={cn(
+                  "size-4 transition-transform duration-(--duration-base) ease-soft",
+                  isExpanded && "rotate-90",
+                )}
                 aria-hidden
               />
             </button>
           )}
         </div>
         {hasChildren && (
-          <ul id={bodyId} hidden={!isExpanded} className="my-0.5 ml-3 space-y-0.5 border-l pl-1">
-            {entry.children!.map((child) => renderEntry(child, owner))}
-          </ul>
+          <Collapse id={bodyId} open={isExpanded}>
+            <ul className="my-0.5 ml-3 space-y-0.5 border-l pl-1">
+              {entry.children!.map((child) => renderEntry(child, owner))}
+            </ul>
+          </Collapse>
         )}
       </li>
     );
   };
   return (
-    <nav aria-label={t.label}>
-      <button
-        type="button"
-        aria-expanded={mobileOpen}
-        aria-controls={`${prefix}-navigation`}
-        onClick={() => setMobileOpen((value) => !value)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
-      >
-        {t.jumpTo}: {entries.find((entry) => entry.id === active)?.label}
-        <ChevronRight className={cn("size-4 shrink-0", mobileOpen && "rotate-90")} aria-hidden />
-      </button>
-      <ul
-        id={`${prefix}-navigation`}
-        className={cn(
-          "max-h-[60dvh] space-y-0.5 overflow-y-auto lg:max-h-none lg:overflow-visible",
-          mobileOpen ? "mt-2 block lg:mt-0" : "hidden lg:block",
-        )}
-      >
-        {entries.map((entry) => renderEntry(entry, entry.id, true))}
-      </ul>
-    </nav>
+    <LayoutGroup id={prefix}>
+      <nav aria-label={t.label}>
+        <button
+          type="button"
+          aria-expanded={mobileOpen}
+          aria-controls={`${prefix}-navigation`}
+          onClick={() => setMobileOpen((value) => !value)}
+          className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
+        >
+          {t.jumpTo}: {entries.find((entry) => entry.id === active)?.label}
+          <ChevronRight
+            className={cn(
+              "size-4 shrink-0 transition-transform duration-(--duration-base) ease-soft",
+              mobileOpen && "rotate-90",
+            )}
+            aria-hidden
+          />
+        </button>
+        <ul
+          id={`${prefix}-navigation`}
+          className={cn(
+            "max-h-[60dvh] space-y-0.5 overflow-y-auto lg:max-h-none lg:overflow-visible",
+            mobileOpen ? "mt-2 block lg:mt-0" : "hidden lg:block",
+          )}
+        >
+          {entries.map((entry) => renderEntry(entry, entry.id, true))}
+        </ul>
+      </nav>
+    </LayoutGroup>
   );
 }

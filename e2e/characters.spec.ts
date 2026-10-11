@@ -51,9 +51,35 @@ async function uploadImage(
   file: { name: string; mimeType: string; buffer: Buffer },
 ) {
   await page.getByTestId(`upload-${role}`).setInputFiles(file);
+  if (role === "avatar") {
+    // A new avatar always goes through the crop step; the default crop is the centred square.
+    const dialog = page.getByRole("dialog", { name: "Cắt ảnh đại diện" });
+    await expect(dialog.getByTestId("avatar-crop-preview")).toBeVisible();
+    await dialog.getByRole("button", { name: "Lưu" }).click();
+    return;
+  }
   const dialog = page.getByRole("dialog", { name: "Xem trước ảnh" });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Tải lên" }).click();
+}
+
+/** A real PNG of the given size (two colour halves), drawn by the browser. */
+async function drawnPng(page: Page, width: number, height: number): Promise<Buffer> {
+  const dataUrl = await page.evaluate(
+    ([w, h]) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w!;
+      canvas.height = h!;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = "#7c3aed";
+      context.fillRect(0, 0, w!, h!);
+      context.fillStyle = "#f59e0b";
+      context.fillRect(w! / 2, 0, w! / 2, h!);
+      return canvas.toDataURL("image/png");
+    },
+    [width, height],
+  );
+  return Buffer.from(dataUrl.split(",")[1]!, "base64");
 }
 
 test("create, view, edit, favourite, tag, upload, search and delete a character", async ({
@@ -258,4 +284,110 @@ test("collections group characters and can be deleted without losing them", asyn
   await expect(
     page.getByText("Chưa thuộc bộ sưu tập nào.").filter({ visible: true }),
   ).toBeVisible();
+});
+
+test("crops an avatar before saving and can re-crop it from the original", async ({
+  page,
+}, testInfo) => {
+  const name = uniqueName("Cắt ảnh", testInfo.project.name);
+  await createCharacter(page, name);
+  const wide = await drawnPng(page, 400, 200);
+  const avatar = page.getByRole("img", { name: `Ảnh đại diện của ${name}` });
+  const file = { name: "rộng.png", mimeType: "image/png", buffer: wide };
+
+  // Cancel: nothing is uploaded, the avatar stays empty.
+  await page.getByTestId("upload-avatar").setInputFiles(file);
+  let dialog = page.getByRole("dialog", { name: "Cắt ảnh đại diện" });
+  await expect(dialog.getByTestId("avatar-crop-preview")).toBeVisible();
+  await dialog.getByRole("button", { name: "Phóng to" }).click();
+  await dialog.getByRole("button", { name: "Hủy" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(avatar).toHaveCount(0);
+
+  // Save the default (centred square of a 2:1 image): the frame shows half the width.
+  await page.getByTestId("upload-avatar").setInputFiles(file);
+  dialog = page.getByRole("dialog", { name: "Cắt ảnh đại diện" });
+  await expect(dialog.getByTestId("avatar-crop-preview")).toBeVisible();
+  await dialog.getByRole("button", { name: "Lưu" }).click();
+  await expect(page.getByText("Đã tải ảnh lên.").first()).toBeVisible();
+  await expect(dialog).toBeHidden();
+  await expect(avatar).toHaveAttribute("style", /width: ?200%/);
+  await page.reload();
+  await expect(avatar).toHaveAttribute("style", /width: ?200%/);
+
+  // Re-crop from the stored source: zoom in, save, and the crop survives a reload.
+  dialog = await openDialog(page, page.getByRole("button", { name: "Chỉnh vùng cắt" }));
+  await expect(dialog.getByRole("heading", { name: "Chỉnh vùng cắt ảnh đại diện" })).toBeVisible();
+  await expect(dialog.getByTestId("avatar-crop-preview")).toBeVisible();
+  await dialog.getByRole("button", { name: "Phóng to" }).click();
+  await dialog.getByRole("button", { name: "Phóng to" }).click();
+  await dialog.getByRole("button", { name: "Lưu" }).click();
+  await expect(page.getByText("Đã cập nhật ảnh đại diện.")).toBeVisible();
+  await page.reload();
+  const width = await avatar.evaluate((img: HTMLImageElement) =>
+    Number.parseFloat(img.style.width),
+  );
+  expect(width).toBeGreaterThan(250);
+
+  // "Đặt lại" goes back to the centred square.
+  dialog = await openDialog(page, page.getByRole("button", { name: "Chỉnh vùng cắt" }));
+  await expect(dialog.getByTestId("avatar-crop-preview")).toBeVisible();
+  await dialog.getByRole("button", { name: "Đặt lại" }).click();
+  await dialog.getByRole("button", { name: "Lưu" }).click();
+  await expect(page.getByText("Đã cập nhật ảnh đại diện.").first()).toBeVisible();
+  await expect(avatar).toHaveAttribute("style", /width: ?200%/);
+});
+
+test("shows whole reference images in a masonry layout without overlap", async ({
+  page,
+}, testInfo) => {
+  await createCharacter(page, uniqueName("Ảnh tham khảo", testInfo.project.name));
+  const sizes = [
+    [300, 600],
+    [600, 300],
+    [400, 400],
+    [500, 250],
+  ] as const;
+  for (const [index, [width, height]] of sizes.entries()) {
+    await uploadImage(page, "reference", {
+      name: `ref-${index}.png`,
+      mimeType: "image/png",
+      buffer: await drawnPng(page, width, height),
+    });
+    await expect(page.getByRole("button", { name: `Xem ảnh ${index + 1}` })).toBeVisible();
+  }
+
+  const gallery = page.getByTestId("reference-gallery");
+  const tiles = gallery.locator(":scope > li");
+  await expect(tiles).toHaveCount(sizes.length);
+  // Let tiles finish moving into place.
+  await expect
+    .poll(async () => {
+      const boxes = await tiles.evaluateAll((items) =>
+        items.map((item) => item.getBoundingClientRect().toJSON() as DOMRect),
+      );
+      return boxes.every(
+        (a, i) =>
+          boxes.every(
+            (b, j) =>
+              i === j ||
+              a.right <= b.left + 1 ||
+              b.right <= a.left + 1 ||
+              a.bottom <= b.top + 1 ||
+              b.bottom <= a.top + 1,
+          ) && Math.abs(a.height / a.width - sizes[i]![1] / sizes[i]![0]) < 0.02,
+      );
+    })
+    .toBe(true);
+
+  // The container grows to hold every tile; nothing overflows sideways.
+  const fits = await gallery.evaluate((list) => {
+    const box = list.getBoundingClientRect();
+    return [...list.children].every((item) => {
+      const tile = item.getBoundingClientRect();
+      return tile.bottom <= box.bottom + 1 && tile.right <= box.right + 1;
+    });
+  });
+  expect(fits).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

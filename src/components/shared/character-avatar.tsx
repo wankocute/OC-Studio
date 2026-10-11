@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import { getInitials } from "@/features/characters/initials";
+import { type AvatarCrop, avatarCropStyle } from "@/features/media/avatar-crop";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -15,12 +16,20 @@ type CharacterAvatarProps = {
   name: string;
   /** Media id of the avatar, served by `/media/[id]`. */
   mediaId?: string | null;
+  /** Visible square of the source image; `null`/absent = centred square. */
+  crop?: AvatarCrop | null;
   size?: keyof typeof SIZES;
   className?: string;
 };
 
 /** Avatar image, or the character's initials on a tinted disc. */
-export function CharacterAvatar({ name, mediaId, size = "md", className }: CharacterAvatarProps) {
+export function CharacterAvatar({
+  name,
+  mediaId,
+  crop,
+  size = "md",
+  className,
+}: CharacterAvatarProps) {
   const { box, pixels } = SIZES[size];
   return (
     <span
@@ -38,7 +47,9 @@ export function CharacterAvatar({ name, mediaId, size = "md", className }: Chara
           height={pixels * 2}
           // Served by our own route with long-lived caching; no optimizer needed.
           unoptimized
-          className="size-full object-cover"
+          className={crop ? undefined : "size-full object-cover"}
+          style={crop ? avatarCropStyle(crop) : undefined}
+          draggable={false}
         />
       ) : (
         <span aria-hidden>{getInitials(name) || "?"}</span>

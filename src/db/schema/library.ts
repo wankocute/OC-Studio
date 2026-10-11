@@ -5,6 +5,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -12,6 +13,9 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+
+// Relative import: drizzle-kit loads this file outside Next.js and does not resolve "@/".
+import type { AvatarCrop } from "../../features/media/avatar-crop";
 
 import { characters } from "./characters";
 
@@ -82,12 +86,21 @@ export const characterMedia = pgTable(
     position: integer("position").notNull().default(0),
     /** The image shown for the character (thumbnail/cover). At most one per character. */
     isPrimary: boolean("is_primary").notNull().default(false),
+    /**
+     * Avatars only: the visible square of the source image (fractions, see `avatarCropSchema`).
+     * `null` = centred square. The file itself is never cropped, so the crop can be redone.
+     */
+    crop: jsonb("crop").$type<AvatarCrop>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.characterId, t.mediaId] }),
     check("character_media_role_valid", sql`${t.role} in ('avatar', 'reference')`),
     check("character_media_position_non_negative", sql`${t.position} >= 0`),
+    check(
+      "character_media_crop_avatar_only",
+      sql`${t.crop} is null or (${t.role} = 'avatar' and jsonb_typeof(${t.crop}) = 'object')`,
+    ),
     uniqueIndex("character_media_one_avatar")
       .on(t.characterId)
       .where(sql`${t.role} = 'avatar'`),

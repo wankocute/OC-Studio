@@ -23,7 +23,11 @@ vi.mock("./server/media-service", async (importOriginal) => ({
   attachUploadedImage: mocks.attach,
 }));
 
-import { attachUploadedImageAction, prepareImageUploadAction } from "./actions";
+import {
+  attachUploadedImageAction,
+  prepareImageUploadAction,
+  setAvatarCropAction,
+} from "./actions";
 import { MediaUploadError } from "./server/media-service";
 
 const CHARACTER = "0b0e7c2e-6c55-4c62-9a43-1b3f2c3d4e5f";
@@ -82,5 +86,48 @@ describe("attachUploadedImageAction", () => {
         storageKey: "media/2026/10/0b0e7c2e-6c55-4c62-9a43-1b3f2c3d4e5f.png",
       }),
     ).toMatchObject({ ok: false, error: { code: "upload_failed" } });
+  });
+});
+
+describe("avatar crop", () => {
+  const KEY = "media/2026/10/0b0e7c2e-6c55-4c62-9a43-1b3f2c3d4e5f.png";
+  const CROP = { x: 0.1, y: 0, width: 0.5, height: 1 };
+
+  it("attaches the crop chosen before upload together with the avatar", async () => {
+    mocks.attach.mockResolvedValueOnce({});
+    expect(
+      await attachUploadedImageAction({
+        characterId: CHARACTER,
+        role: "avatar",
+        storageKey: KEY,
+        crop: CROP,
+      }),
+    ).toEqual({ ok: true, data: undefined });
+    expect(mocks.attach).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ role: "avatar", crop: CROP }),
+    );
+  });
+
+  it("refuses a crop on a reference image or outside the image, before storing anything", async () => {
+    for (const input of [
+      { role: "reference", crop: CROP },
+      { role: "avatar", crop: { x: 0.8, y: 0, width: 0.5, height: 1 } },
+    ]) {
+      expect(
+        await attachUploadedImageAction({ characterId: CHARACTER, storageKey: KEY, ...input }),
+      ).toMatchObject({ ok: false, error: { code: "invalid_input" } });
+    }
+    expect(mocks.attach).not.toHaveBeenCalled();
+  });
+
+  it("validates a re-crop before touching the database", async () => {
+    expect(
+      await setAvatarCropAction({ characterId: CHARACTER, mediaId: "nope", crop: CROP }),
+    ).toMatchObject({ ok: false, error: { code: "invalid_input" } });
+    mocks.denied = { ok: false, error: { code: "unauthenticated", message: "x" } };
+    expect(
+      await setAvatarCropAction({ characterId: CHARACTER, mediaId: CHARACTER, crop: CROP }),
+    ).toBe(mocks.denied);
   });
 });

@@ -2,6 +2,7 @@
 
 import { Plus, X } from "lucide-react";
 
+import { SegmentedControl } from "@/components/shared/segmented-control";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { LeafConfig } from "@/features/characters/domain";
 import { type LeafDraft, OTHER_CHOICE } from "@/features/characters/editor/drafts";
 import { newItemId } from "@/features/characters/editor/ids";
@@ -132,21 +132,21 @@ export function MeasureInput({
 export function BooleanInput({ id, label, draft, onChange }: InputProps<"boolean">) {
   const value = draft.value === null ? "unknown" : draft.value ? "yes" : "no";
   return (
-    <ToggleGroup
+    <SegmentedControl
       id={id}
-      type="single"
-      variant="outline"
-      aria-label={label}
+      size="default"
+      ariaLabel={label}
       value={value}
       onValueChange={(next) =>
         // Clicking the active item deselects it in Radix; treat that as "unknown".
         onChange({ ...draft, value: next === "yes" ? true : next === "no" ? false : null })
       }
-    >
-      <ToggleGroupItem value="unknown">{t.unknown}</ToggleGroupItem>
-      <ToggleGroupItem value="yes">{t.yes}</ToggleGroupItem>
-      <ToggleGroupItem value="no">{t.no}</ToggleGroupItem>
-    </ToggleGroup>
+      options={[
+        { value: "unknown", label: t.unknown },
+        { value: "yes", label: t.yes },
+        { value: "no", label: t.no },
+      ]}
+    />
   );
 }
 
@@ -162,17 +162,15 @@ export function DateInput({
 }: InputProps<"date">) {
   return (
     <div className="space-y-3">
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        aria-label={`${label} — ${t.dateType}`}
+      <SegmentedControl<typeof draft.mode>
+        ariaLabel={`${label} — ${t.dateType}`}
         value={draft.mode}
-        onValueChange={(mode) => mode && onChange({ ...draft, mode: mode as typeof draft.mode })}
-      >
-        <ToggleGroupItem value="calendar">{t.dateCalendar}</ToggleGroupItem>
-        <ToggleGroupItem value="text">{t.dateText}</ToggleGroupItem>
-      </ToggleGroup>
+        onValueChange={(mode) => mode && onChange({ ...draft, mode })}
+        options={[
+          { value: "calendar", label: t.dateCalendar },
+          { value: "text", label: t.dateText },
+        ]}
+      />
       {draft.mode === "text" ? (
         <Input
           id={id}

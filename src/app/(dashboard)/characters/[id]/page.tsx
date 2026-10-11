@@ -73,7 +73,8 @@ async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]
     height: item.height,
     originalFilename: item.originalFilename,
   });
-  const avatar = media.find((item) => item.role === "avatar");
+  const avatarRow = media.find((item) => item.role === "avatar");
+  const avatar = avatarRow ? { ...toImage(avatarRow), crop: avatarRow.crop } : null;
   const references = media.filter((item) => item.role === "reference").map(toImage);
   const summary = summarizeCharacter(facts.values);
   const factCount = Object.keys(facts.values).length;
@@ -116,11 +117,7 @@ async function CharacterDetail({ params }: { params: PageProps<"/characters/[id]
       )}
 
       <header className="flex flex-col gap-6 rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:flex-row sm:items-center md:p-6">
-        <AvatarEditor
-          characterId={record.id}
-          name={name}
-          avatar={avatar ? toImage(avatar) : null}
-        />
+        <AvatarEditor characterId={record.id} name={name} avatar={avatar} />
         <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
           <h1 className="font-heading text-3xl font-semibold tracking-tight break-words md:text-4xl">
             {name}

@@ -228,3 +228,64 @@ describe("removeCharacterImage", () => {
     expect(await media.listForCharacter(other)).toHaveLength(1);
   });
 });
+
+describe("avatar crop", () => {
+  const CROP = { x: 0.25, y: 0, width: 0.5, height: 1 };
+
+  it("saves the crop with the avatar and lets it be changed later from the same source", async () => {
+    const asset = await uploadCharacterImage(deps(), {
+      characterId,
+      role: "avatar",
+      bytes: PNG_1X1,
+      crop: CROP,
+    });
+    expect(await media.listForCharacter(characterId)).toMatchObject([
+      { mediaId: asset.id, role: "avatar", crop: CROP },
+    ]);
+
+    const next = { x: 0, y: 0.1, width: 0.6, height: 0.6 };
+    await media.setAvatarCrop(characterId, asset.id, next);
+    const [row] = await media.listForCharacter(characterId);
+    expect(row).toMatchObject({ mediaId: asset.id, crop: next, storageKey: asset.storageKey });
+
+    await media.setAvatarCrop(characterId, asset.id, null);
+    expect((await media.listForCharacter(characterId))[0]!.crop).toBeNull();
+  });
+
+  it("a replaced avatar starts with its own crop", async () => {
+    await uploadCharacterImage(deps(), { characterId, role: "avatar", bytes: PNG_1X1, crop: CROP });
+    const second = await uploadCharacterImage(deps(), {
+      characterId,
+      role: "avatar",
+      bytes: GIF_1X1,
+    });
+    expect(await media.listForCharacter(characterId)).toMatchObject([
+      { mediaId: second.id, crop: null },
+    ]);
+  });
+
+  it("refuses crops on reference images and invalid crops, storing nothing", async () => {
+    await expect(
+      uploadCharacterImage(deps(), { characterId, role: "reference", bytes: PNG_1X1, crop: CROP }),
+    ).rejects.toMatchObject({ code: "validation_failed" });
+    await expect(
+      uploadCharacterImage(deps(), {
+        characterId,
+        role: "avatar",
+        bytes: PNG_1X1,
+        crop: { x: 0.9, y: 0, width: 0.5, height: 1 },
+      }),
+    ).rejects.toMatchObject({ code: "validation_failed" });
+    expect(await storedFiles()).toEqual([]);
+    expect(await db.select().from(mediaAssets)).toEqual([]);
+
+    const reference = await uploadCharacterImage(deps(), {
+      characterId,
+      role: "reference",
+      bytes: PNG_1X1,
+    });
+    await expect(media.setAvatarCrop(characterId, reference.id, CROP)).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+});

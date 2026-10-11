@@ -94,41 +94,47 @@ describe("editor navigation tree", () => {
     expect(find(basic, "custom.mana01")?.sectionId).toBe("cg_magic01");
     expect(find(basic, "cg_spell01")?.children?.[0].fieldKey).toBe("custom.spell01");
   });
-  it("keeps both expansion levels and marks the selected field while navigating", () => {
-    const onSelect = vi.fn();
-    const all = entries("advanced");
-    const view = render(<EditorNav entries={all} active="identity" onSelect={onSelect} />);
-    const nav = within(screen.getByRole("navigation"));
-    fireEvent.click(nav.getByRole("button", { name: "Mở rộng Ngoại hình" }));
-    fireEvent.click(nav.getByRole("button", { name: "Mở rộng Mái tóc" }));
-    fireEvent.click(nav.getByRole("button", { name: "Màu tóc" }));
-    expect(onSelect).toHaveBeenLastCalledWith(
-      "appearance",
-      "appearance.hair",
-      "appearance.hair_color",
-    );
-    view.rerender(
-      <EditorNav
-        entries={all}
-        active="appearance"
-        activeItem="appearance.hair_color"
-        onSelect={onSelect}
-      />,
-    );
-    expect(nav.getByRole("button", { name: "Màu tóc" })).toHaveAttribute(
-      "aria-current",
-      "location",
-    );
-    view.rerender(<EditorNav entries={all} active="psychology" onSelect={onSelect} />);
-    expect(nav.getByRole("button", { name: "Thu gọn Ngoại hình" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(nav.getByRole("button", { name: "Thu gọn Mái tóc" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-  });
+  // Role queries over the whole built-in tree take ~2.5 s alone and far longer when the full
+  // suite runs in parallel; the default 5 s was not enough even before animations were added.
+  it(
+    "keeps both expansion levels and marks the selected field while navigating",
+    { timeout: 30_000 },
+    () => {
+      const onSelect = vi.fn();
+      const all = entries("advanced");
+      const view = render(<EditorNav entries={all} active="identity" onSelect={onSelect} />);
+      const nav = within(screen.getByRole("navigation"));
+      fireEvent.click(nav.getByRole("button", { name: "Mở rộng Ngoại hình" }));
+      fireEvent.click(nav.getByRole("button", { name: "Mở rộng Mái tóc" }));
+      fireEvent.click(nav.getByRole("button", { name: "Màu tóc" }));
+      expect(onSelect).toHaveBeenLastCalledWith(
+        "appearance",
+        "appearance.hair",
+        "appearance.hair_color",
+      );
+      view.rerender(
+        <EditorNav
+          entries={all}
+          active="appearance"
+          activeItem="appearance.hair_color"
+          onSelect={onSelect}
+        />,
+      );
+      expect(nav.getByRole("button", { name: "Màu tóc" })).toHaveAttribute(
+        "aria-current",
+        "location",
+      );
+      view.rerender(<EditorNav entries={all} active="psychology" onSelect={onSelect} />);
+      expect(nav.getByRole("button", { name: "Thu gọn Ngoại hình" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(nav.getByRole("button", { name: "Thu gọn Mái tóc" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+    },
+  );
   it("exposes the same tree on mobile and closes its menu after field selection", () => {
     const onSelect = vi.fn();
     render(<EditorNav entries={entries("basic")} active="cg_magic01" onSelect={onSelect} />);

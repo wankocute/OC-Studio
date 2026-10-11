@@ -2,12 +2,14 @@ import { Suspense } from "react";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppTopbar } from "@/components/layout/app-topbar";
+import { SmoothScroll } from "@/components/providers/smooth-scroll";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 
 export default function DashboardLayout({ children }: LayoutProps<"/">) {
   return (
     <SidebarProvider>
+      <SmoothScroll />
       <AppSidebar
         footer={
           <Suspense fallback={null}>

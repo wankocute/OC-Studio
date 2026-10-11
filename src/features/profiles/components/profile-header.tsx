@@ -14,8 +14,9 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { SegmentedControl } from "@/components/shared/segmented-control";
+import { StatusSwap } from "@/components/shared/status-swap";
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { SectionDraftState } from "@/features/profiles/workspace/state";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -86,7 +87,10 @@ export function ProfileHeader({
   const status = active ? draftStatusView(active) : null;
   const Icon = status?.icon;
   return (
-    <header className="sticky top-14 z-10 -mx-4 border-b bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:-mx-8 md:px-8">
+    <header
+      data-sticky-offset
+      className="sticky top-14 z-10 -mx-4 border-b bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:-mx-8 md:px-8"
+    >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Button asChild variant="ghost" size="icon-sm" className="shrink-0">
           <Link href={`/characters/${characterId}` as Route} aria-label={t.back}>
@@ -107,8 +111,12 @@ export function ProfileHeader({
               data-testid="save-status"
               className={cn("flex items-center gap-1.5 text-sm", toneClass[status.tone])}
             >
-              <Icon className={cn("size-4", status.spin && "animate-spin")} aria-hidden />
-              {status.label}
+              <StatusSwap
+                key={`${status.tone}:${status.spin ? "busy" : status.tone === "success" ? "done" : status.label}`}
+              >
+                <Icon className={cn("size-4", status.spin && "animate-spin")} aria-hidden />
+                {status.label}
+              </StatusSwap>
             </p>
           )}
           {otherUnsaved > 0 && (
@@ -120,17 +128,15 @@ export function ProfileHeader({
               {t.status.retry}
             </Button>
           )}
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            aria-label={t.view.label}
+          <SegmentedControl<WorkspaceView>
+            ariaLabel={t.view.label}
             value={view}
-            onValueChange={(next) => next && onViewChange(next as WorkspaceView)}
-          >
-            <ToggleGroupItem value="edit">{t.view.edit}</ToggleGroupItem>
-            <ToggleGroupItem value="preview">{t.view.preview}</ToggleGroupItem>
-          </ToggleGroup>
+            onValueChange={(next) => next && onViewChange(next)}
+            options={[
+              { value: "edit", label: t.view.edit },
+              { value: "preview", label: t.view.preview },
+            ]}
+          />
           {printAction}
           <Button asChild variant="outline" size="sm">
             <Link href={`/characters/${characterId}/edit` as Route} title={t.openFactsHint}>

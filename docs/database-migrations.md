@@ -48,6 +48,7 @@ Danh sách migration hiện có:
 | `0000_initial_schema.sql`   | Tạo 10 bảng của TASK 03 với PK, FK, CHECK và index. Chỉ `CREATE` / `ALTER TABLE … ADD CONSTRAINT`; không có câu lệnh phá hủy                                              |
 | `0001_profiles.sql`         | TASK 06: thêm `profiles`, `profile_sections`, `content_revisions`. Chỉ `CREATE TABLE` / `ADD CONSTRAINT` / `CREATE INDEX`, không đụng bảng cũ                             |
 | `0002_serverless_state.sql` | Deploy Vercel: thêm `ai_section_tokens`, `ai_section_jobs`, `login_failures` (trạng thái tạm). Chỉ `CREATE TABLE` / `ADD CONSTRAINT` / `CREATE INDEX`, không đụng bảng cũ |
+| `0003_avatar_crop.sql`      | Thêm cột `character_media.crop` (jsonb, NULL) + CHECK chỉ cho avatar. Chỉ `ADD COLUMN` / `ADD CONSTRAINT`, dữ liệu cũ giữ nguyên (NULL = cắt giữa)                        |
 
 ## 3. Sao lưu và khôi phục
 

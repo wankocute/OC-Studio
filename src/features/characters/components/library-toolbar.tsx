@@ -3,8 +3,9 @@
 import { LayoutGrid, List, Search, Star } from "lucide-react";
 import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { addTransitionType, useEffect, useState, useTransition } from "react";
 
+import { SegmentedControl } from "@/components/shared/segmented-control";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   type LibraryParams,
   type LibrarySort,
@@ -23,6 +23,8 @@ import {
   libraryQueryString,
 } from "@/features/characters/library-params";
 import { messages } from "@/i18n";
+
+import { LIBRARY_LAYOUT_TRANSITION } from "./library-transition";
 import { cn } from "@/lib/utils";
 
 const t = messages.characters;
@@ -55,9 +57,13 @@ export function LibraryToolbar({
     if (params.q !== query.normalize("NFC").trim()) setQuery(params.q);
   }
 
+  // View, sort and filter changes move the cards to their new place (see `CharacterList`).
   const navigate = (patch: Partial<LibraryParams>) => {
     const href = `${pathname}${libraryQueryString({ ...params, ...patch })}`;
-    startTransition(() => router.replace(href as Route, { scroll: false }));
+    startTransition(() => {
+      addTransitionType(LIBRARY_LAYOUT_TRANSITION);
+      router.replace(href as Route, { scroll: false });
+    });
   };
 
   // Debounce typing; only navigate when the text actually differs from the URL.
@@ -147,21 +153,20 @@ export function LibraryToolbar({
           {t.favoritesOnly}
         </Button>
 
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
+        <SegmentedControl<LibraryView>
+          ariaLabel={t.viewLabel}
           value={params.view}
-          onValueChange={(value) => value && navigate({ view: value as LibraryView })}
-          aria-label={t.viewLabel}
-        >
-          <ToggleGroupItem value="grid" aria-label={t.viewGrid} className="h-9">
-            <LayoutGrid aria-hidden />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="list" aria-label={t.viewList} className="h-9">
-            <List aria-hidden />
-          </ToggleGroupItem>
-        </ToggleGroup>
+          onValueChange={(value) => value && navigate({ view: value })}
+          options={[
+            {
+              value: "grid",
+              label: <LayoutGrid aria-hidden />,
+              ariaLabel: t.viewGrid,
+              className: "h-9",
+            },
+            { value: "list", label: <List aria-hidden />, ariaLabel: t.viewList, className: "h-9" },
+          ]}
+        />
       </div>
     </div>
   );

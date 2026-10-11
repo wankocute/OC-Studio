@@ -13,6 +13,8 @@ import {
   type MediaRole,
 } from "@/db/schema";
 
+import { type AvatarCrop, avatarCropSchema } from "@/features/media/avatar-crop";
+
 import { assertActiveCharacter } from "./active-character";
 
 export type MediaAsset = typeof mediaAssets.$inferSelect;
@@ -40,6 +42,19 @@ function parseAsset(input: MediaAssetInput) {
     throw new RepositoryError("validation_failed", {
       issues: result.error.issues.map((issue) => ({
         path: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+  return result.data;
+}
+
+function parseCrop(crop: AvatarCrop): AvatarCrop {
+  const result = avatarCropSchema.safeParse(crop);
+  if (!result.success) {
+    throw new RepositoryError("validation_failed", {
+      issues: result.error.issues.map((issue) => ({
+        path: ["crop", ...issue.path].join("."),
         message: issue.message,
       })),
     });
@@ -76,9 +91,13 @@ export function createMediaRepository(db: Database) {
     /**
      * Record a stored file and attach it to a character in one transaction. An avatar replaces
      * the current avatar link; references go to the end of the gallery. Returns the replaced
-     * avatar's id so the caller can clean it up if nothing else uses it.
+     * avatar's id so the caller can clean it up if nothing else uses it. A crop is only accepted
+     * for an avatar.
      */
-    createAndAttach: (input: MediaAssetInput, target: { characterId: string; role: MediaRole }) =>
+    createAndAttach: (
+      input: MediaAssetInput,
+      target: { characterId: string; role: MediaRole; crop?: AvatarCrop },
+    ) =>
       guard(() =>
         db.transaction(async (tx) => {
           if (!MEDIA_ROLES.includes(target.role)) {
@@ -86,6 +105,12 @@ export function createMediaRepository(db: Database) {
               issues: [{ path: "role", message: "Vai trò ảnh không hợp lệ." }],
             });
           }
+          if (target.crop && target.role !== "avatar") {
+            throw new RepositoryError("validation_failed", {
+              issues: [{ path: "crop", message: "Chỉ ảnh đại diện mới có vùng cắt." }],
+            });
+          }
+          const crop = target.crop ? parseCrop(target.crop) : null;
           await assertActiveCharacter(tx, target.characterId);
           const [asset] = await tx.insert(mediaAssets).values(parseAsset(input)).returning();
 
@@ -120,6 +145,7 @@ export function createMediaRepository(db: Database) {
             mediaId: asset!.id,
             role: target.role,
             position,
+            crop,
           });
           return { asset: asset!, replacedMediaId };
         }),
@@ -196,6 +222,28 @@ export function createMediaRepository(db: Database) {
         }),
       ),
 
+    /**
+     * Change which part of the current avatar is shown (`null` = centred). Only the link row
+     * changes; the source file stays whole. `not_found` when `mediaId` is not the avatar.
+     */
+    setAvatarCrop: (characterId: string, mediaId: string, crop: AvatarCrop | null) =>
+      guard(async () => {
+        const value = crop ? parseCrop(crop) : null;
+        const [row] = await db
+          .update(characterMedia)
+          .set({ crop: value })
+          .where(
+            and(
+              eq(characterMedia.characterId, characterId),
+              eq(characterMedia.mediaId, mediaId),
+              eq(characterMedia.role, "avatar"),
+            ),
+          )
+          .returning({ mediaId: characterMedia.mediaId });
+        if (!row)
+          throw new RepositoryError("not_found", { entity: "character_media", id: mediaId });
+      }),
+
     detach: (characterId: string, mediaId: string) =>
       guard(async () => {
         await db
@@ -218,6 +266,7 @@ export function createMediaRepository(db: Database) {
             role: characterMedia.role,
             position: characterMedia.position,
             isPrimary: characterMedia.isPrimary,
+            crop: characterMedia.crop,
           })
           .from(characterMedia)
           .innerJoin(mediaAssets, eq(mediaAssets.id, characterMedia.mediaId))

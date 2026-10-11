@@ -45,8 +45,35 @@ const JPEG_SOF = new Set([
   0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf,
 ]);
 
+/**
+ * EXIF orientation (1–8) from an APP1 segment whose payload spans `[start, end)`, or 1.
+ * Phones store photos unrotated plus this tag; browsers display them rotated.
+ */
+function exifOrientation(b: Uint8Array, start: number, end: number): number {
+  if (end > b.length || end - start < 14 || ascii(b, start, 6) !== "Exif\0\0") return 1;
+  const tiff = start + 6;
+  const order = ascii(b, tiff, 2);
+  if (order !== "II" && order !== "MM") return 1;
+  const little = order === "II";
+  const u16 = (i: number) => (little ? u16le(b, i) : u16be(b, i));
+  const u32 = (i: number) => (little ? u16le(b, i) + u16le(b, i + 2) * 0x10000 : u32be(b, i));
+  const ifd = tiff + u32(tiff + 4);
+  if (ifd + 2 > end) return 1;
+  const entries = u16(ifd);
+  for (let n = 0; n < entries; n += 1) {
+    const entry = ifd + 2 + n * 12;
+    if (entry + 12 > end) break;
+    if (u16(entry) === 0x0112) {
+      const value = u16(entry + 8);
+      return value >= 1 && value <= 8 ? value : 1;
+    }
+  }
+  return 1;
+}
+
 function detectJpeg(b: Uint8Array): DetectedImage | null {
   if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8 || b[2] !== 0xff) return null;
+  let orientation = 1;
   let i = 2;
   while (i + 9 < b.length) {
     if (b[i] !== 0xff) break;
@@ -59,11 +86,15 @@ function detectJpeg(b: Uint8Array): DetectedImage | null {
       i += 2; // markers without a length
       continue;
     }
+    if (marker === 0xe1) orientation = exifOrientation(b, i + 4, i + 2 + u16be(b, i + 2));
     if (JPEG_SOF.has(marker)) {
+      const width = u16be(b, i + 7);
+      const height = u16be(b, i + 5);
+      // Orientations 5–8 turn the picture a quarter: report the size as it is displayed.
       return {
         mimeType: "image/jpeg",
         extension: "jpg",
-        ...size(u16be(b, i + 7), u16be(b, i + 5)),
+        ...(orientation >= 5 ? size(height, width) : size(width, height)),
       };
     }
     if (marker === 0xda || marker === 0xd9) break; // image data / end before a frame header

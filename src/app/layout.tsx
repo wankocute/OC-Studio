@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Lora } from "next/font/google";
 
+import { MotionProvider } from "@/components/providers/motion-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+          <MotionProvider>
+            <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+          </MotionProvider>
           <Toaster position="bottom-right" closeButton />
         </ThemeProvider>
       </body>

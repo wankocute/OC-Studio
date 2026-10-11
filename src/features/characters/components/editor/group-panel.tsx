@@ -4,11 +4,13 @@ import { ArrowRightLeft, ChevronDown, EyeOff } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 
+import { Collapse } from "@/components/shared/collapse";
 import { Button } from "@/components/ui/button";
 import type { CharacterFacts, FieldConfig, PresentationMode } from "@/features/characters/domain";
 import { emptyValueDraft, type FieldDraft } from "@/features/characters/editor/drafts";
 import type { EditorField, EditorGroup, EditorSection } from "@/features/characters/editor/layout";
 import { messages } from "@/i18n";
+import { scrollToElement } from "@/lib/smooth-scroll";
 import { cn } from "@/lib/utils";
 
 import { useEditorContext } from "./editor-context";
@@ -132,7 +134,7 @@ const FOCUSABLE =
 export function focusField(domId: string) {
   const card = document.getElementById(domId);
   if (!card) return;
-  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  scrollToElement(card);
   const body = [...card.children].slice(1);
   const target =
     body
@@ -237,7 +239,10 @@ export function GroupPanel({
               >
                 <ChevronDown
                   aria-hidden
-                  className={cn("size-4 transition-transform", isCollapsed && "-rotate-90")}
+                  className={cn(
+                    "size-4 transition-transform duration-(--duration-base) ease-soft",
+                    isCollapsed && "-rotate-90",
+                  )}
                 />
                 {section.label}
                 <span className="ml-auto text-xs font-normal text-muted-foreground">
@@ -245,14 +250,14 @@ export function GroupPanel({
                 </span>
               </button>
             </h3>
-            <div id={bodyId} hidden={isCollapsed}>
+            <Collapse id={bodyId} open={!isCollapsed}>
               <SectionFields
                 fields={section.fields}
                 info={info}
                 working={working}
                 onField={onField}
               />
-            </div>
+            </Collapse>
           </section>
         );
       })}

@@ -1,0 +1,2 @@
+ALTER TABLE "character_media" ADD COLUMN "crop" jsonb;--> statement-breakpoint
+ALTER TABLE "character_media" ADD CONSTRAINT "character_media_crop_avatar_only" CHECK ("character_media"."crop" is null or ("character_media"."role" = 'avatar' and jsonb_typeof("character_media"."crop") = 'object'));

@@ -16,6 +16,7 @@ import {
   Pencil,
   type LucideIcon,
 } from "lucide-react";
+import { LayoutGroup, motion } from "motion/react";
 import { useId } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ import {
 import type { SectionStatus } from "@/features/profiles/domain";
 import { sectionLabel, type SectionStructureView } from "@/features/profiles/view";
 import { messages } from "@/i18n";
+import { MOTION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 const t = messages.profiles;
@@ -136,6 +138,7 @@ export function SectionNav({
   commands: SectionCommands;
 }) {
   const selectId = useId();
+  const navScope = useId();
   const active = sections.find((section) => section.id === activeId);
   const activeIndex = sections.findIndex((section) => section.id === activeId);
 
@@ -184,53 +187,66 @@ export function SectionNav({
       </div>
 
       <nav aria-label={t.sections} className="hidden lg:block">
-        <ul className="space-y-0.5">
-          {sections.map((section, index) => {
-            const isActive = section.id === activeId;
-            const status = statuses[section.id] ?? "empty";
-            return (
-              <li key={section.id} className="group/section flex items-center gap-0.5">
-                <button
-                  type="button"
-                  aria-current={isActive ? "page" : undefined}
-                  onClick={() => onSelect(section.id)}
-                  className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                    isActive
-                      ? "bg-accent font-medium text-accent-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    section.isHidden && "opacity-60",
-                  )}
-                >
-                  <SectionStatusIcon status={status} />
-                  <span className="truncate">{sectionLabel(section)}</span>
-                  <span className="sr-only">
-                    {` — ${t.sectionStatus[status]}`}
-                    {section.isHidden ? ` — ${t.hiddenBadge}` : ""}
-                    {aiBadges[section.id] === "running"
-                      ? ` — ${messages.profileAi.job.navRunning}`
-                      : aiBadges[section.id] === "ready"
-                        ? ` — ${messages.profileAi.job.navReady}`
-                        : ""}
-                  </span>
-                  {aiBadges[section.id] === "running" && (
-                    <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin" aria-hidden />
-                  )}
-                  {aiBadges[section.id] === "ready" && (
-                    <Sparkles className="ml-auto size-3.5 shrink-0 text-primary" aria-hidden />
-                  )}
-                  {section.isHidden && <EyeOff className="ml-auto size-3.5 shrink-0" aria-hidden />}
-                </button>
-                <SectionMenu
-                  section={section}
-                  index={index}
-                  count={sections.length}
-                  commands={commands}
-                />
-              </li>
-            );
-          })}
-        </ul>
+        <LayoutGroup id={navScope}>
+          <ul className="space-y-0.5">
+            {sections.map((section, index) => {
+              const isActive = section.id === activeId;
+              const status = statuses[section.id] ?? "empty";
+              return (
+                <li key={section.id} className="group/section flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => onSelect(section.id)}
+                    className={cn(
+                      "relative isolate flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors duration-(--duration-fast) outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.99]",
+                      isActive
+                        ? "font-medium text-accent-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      section.isHidden && "opacity-60",
+                    )}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="profile-section-active"
+                        aria-hidden
+                        className="absolute inset-0 -z-10 bg-accent"
+                        style={{ borderRadius: 8 }}
+                        transition={MOTION.indicator}
+                      />
+                    )}
+                    <SectionStatusIcon status={status} />
+                    <span className="truncate">{sectionLabel(section)}</span>
+                    <span className="sr-only">
+                      {` — ${t.sectionStatus[status]}`}
+                      {section.isHidden ? ` — ${t.hiddenBadge}` : ""}
+                      {aiBadges[section.id] === "running"
+                        ? ` — ${messages.profileAi.job.navRunning}`
+                        : aiBadges[section.id] === "ready"
+                          ? ` — ${messages.profileAi.job.navReady}`
+                          : ""}
+                    </span>
+                    {aiBadges[section.id] === "running" && (
+                      <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin" aria-hidden />
+                    )}
+                    {aiBadges[section.id] === "ready" && (
+                      <Sparkles className="ml-auto size-3.5 shrink-0 text-primary" aria-hidden />
+                    )}
+                    {section.isHidden && (
+                      <EyeOff className="ml-auto size-3.5 shrink-0" aria-hidden />
+                    )}
+                  </button>
+                  <SectionMenu
+                    section={section}
+                    index={index}
+                    count={sections.length}
+                    commands={commands}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </LayoutGroup>
         <Button
           type="button"
           variant="ghost"

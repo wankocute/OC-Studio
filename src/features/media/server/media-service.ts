@@ -5,6 +5,7 @@ import { isRepositoryError } from "@/db/repository-errors";
 import type { MediaRole } from "@/db/schema";
 import { createMediaRepository, type MediaAsset } from "@/features/library/server/media-repository";
 
+import type { AvatarCrop } from "../avatar-crop";
 import { detectImage, type DetectedImage, MEDIA_UPLOAD_LIMITS } from "../image-signature";
 
 import { createStorageKey, isValidStorageKey, type MediaStorage, readStoredBytes } from "./storage";
@@ -26,6 +27,8 @@ export type ImageUpload = {
   bytes: Uint8Array;
   /** Shown to the user only; never used to build paths or detect the type. */
   filename?: string;
+  /** Avatars only: the visible square, chosen before upload (see `avatar-crop.ts`). */
+  crop?: AvatarCrop;
 };
 
 function safeFilename(name: string | undefined): string | undefined {
@@ -140,7 +143,7 @@ async function recordAndAttach(
         width: image.width,
         height: image.height,
       },
-      { characterId: upload.characterId, role: upload.role },
+      { characterId: upload.characterId, role: upload.role, crop: upload.crop },
     );
   } catch (error) {
     // A duplicate key means another request recorded this very file: it is in use, keep it.

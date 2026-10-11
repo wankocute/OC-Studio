@@ -14,8 +14,9 @@ import {
 import type { Route } from "next";
 import Link from "next/link";
 
+import { SegmentedControl } from "@/components/shared/segmented-control";
+import { StatusSwap } from "@/components/shared/status-swap";
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { factLabelsVi, type PresentationMode } from "@/features/characters/domain";
 import type { EditorState } from "@/features/characters/editor/editor-state";
 import { messages } from "@/i18n";
@@ -85,7 +86,10 @@ export function EditorHeader({
   const view = statusView(state, hasErrors);
   const Icon = view.icon;
   return (
-    <header className="sticky top-14 z-10 -mx-4 border-b bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:-mx-8 md:px-8">
+    <header
+      data-sticky-offset
+      className="sticky top-14 z-10 -mx-4 border-b bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:-mx-8 md:px-8"
+    >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Button asChild variant="ghost" size="icon-sm" className="shrink-0">
           <Link href={`/characters/${characterId}` as Route} aria-label={t.back}>
@@ -105,8 +109,12 @@ export function EditorHeader({
             data-testid="save-status"
             className={cn("flex items-center gap-1.5 text-sm", toneClass[view.tone])}
           >
-            <Icon className={cn("size-4", view.spin && "animate-spin")} aria-hidden />
-            {view.label}
+            <StatusSwap
+              key={`${view.tone}:${view.spin ? "busy" : view.tone === "success" ? "done" : view.label}`}
+            >
+              <Icon className={cn("size-4", view.spin && "animate-spin")} aria-hidden />
+              {view.label}
+            </StatusSwap>
           </p>
           {state.status === "error" && !hasErrors && (
             <Button type="button" variant="outline" size="sm" onClick={onRetry}>
@@ -121,20 +129,16 @@ export function EditorHeader({
               {t.openProfile}
             </Link>
           </Button>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            aria-label={t.modeLabel}
+          <SegmentedControl
+            ariaLabel={t.modeLabel}
             value={mode}
-            onValueChange={(next) => next && onModeChange(next as PresentationMode)}
-          >
-            {(["basic", "advanced"] as const).map((option) => (
-              <ToggleGroupItem key={option} value={option} title={t.modeHint[option]}>
-                {factLabelsVi.modes[option]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            onValueChange={(next) => next && onModeChange(next)}
+            options={(["basic", "advanced"] as const).map((option) => ({
+              value: option,
+              label: factLabelsVi.modes[option],
+              title: t.modeHint[option],
+            }))}
+          />
         </div>
       </div>
       {state.status === "error" && state.error && (

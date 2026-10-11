@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { CharacterAvatar } from "@/components/shared/character-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { AvatarCrop } from "@/features/media/avatar-crop";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export type CharacterCardProps = {
   updatedLabel?: string;
   href?: Route;
   avatarMediaId?: string | null;
+  avatarCrop?: AvatarCrop | null;
   isFavorite?: boolean;
   /** Interactive controls (favourite, menu) rendered above the card's link overlay. */
   actions?: ReactNode;
@@ -33,6 +35,7 @@ export function CharacterCard({
   updatedLabel,
   href,
   avatarMediaId,
+  avatarCrop,
   isFavorite = false,
   actions,
   className,
@@ -44,13 +47,15 @@ export function CharacterCard({
   return (
     <Card
       className={cn(
-        "relative h-full transition-shadow",
-        href && "focus-within:ring-2 focus-within:ring-ring hover:ring-foreground/20",
+        "relative h-full",
+        // Hover lifts, press settles: CSS transitions reverse from wherever they are.
+        href &&
+          "transition-[translate,scale,box-shadow] duration-(--duration-base) ease-soft focus-within:ring-2 focus-within:ring-ring hover:-translate-y-0.5 hover:shadow-md hover:ring-foreground/20 has-[a:active]:translate-y-0 has-[a:active]:scale-[0.99] has-[a:active]:shadow-sm motion-reduce:hover:translate-y-0",
         className,
       )}
     >
       <CardHeader className="flex items-center gap-3">
-        <CharacterAvatar name={displayName} mediaId={avatarMediaId} size="md" />
+        <CharacterAvatar name={displayName} mediaId={avatarMediaId} crop={avatarCrop} size="md" />
         <div className="min-w-0 flex-1">
           <CardTitle className="flex items-center gap-1.5">
             <span className="truncate">

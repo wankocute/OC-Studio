@@ -32,6 +32,7 @@ import {
 import { mergeOntoLatest } from "@/features/characters/editor/merge";
 import { validateSheet } from "@/features/characters/editor/validate";
 import { messages } from "@/i18n";
+import { scrollToElement, scrollToTop } from "@/lib/smooth-scroll";
 
 import { ConflictBanner } from "./conflict-banner";
 import { CustomFieldsPanel } from "./custom-fields-panel";
@@ -187,8 +188,8 @@ export function FactEditor(props: FactEditorProps) {
       setActiveItem(undefined);
     });
     const element = target ? document.getElementById(target) : null;
-    if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
-    else window.scrollTo({ top: 0, behavior: "smooth" });
+    if (element) scrollToElement(element);
+    else scrollToTop();
   };
   const openField = (key: string) => {
     const group = groups.find((candidate) => fieldsOfGroup(candidate).some((f) => f.key === key));
@@ -213,8 +214,8 @@ export function FactEditor(props: FactEditorProps) {
     if (field) focusField(fieldDomId(idPrefix, field));
     else {
       const element = section ? document.getElementById(sectionDomId(idPrefix, section)) : null;
-      if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
-      else window.scrollTo({ top: 0, behavior: "smooth" });
+      if (element) scrollToElement(element);
+      else scrollToTop();
       (element?.querySelector<HTMLElement>("button") ?? contentRef.current)?.focus({
         preventScroll: true,
       });

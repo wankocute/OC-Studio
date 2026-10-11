@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { summarizeCharacter } from "@/features/characters/basic-info";
 import type { LibrarySort } from "@/features/characters/library-params";
+import type { AvatarCrop } from "@/features/media/avatar-crop";
 
 /** What a library card needs — never the full fact sheet. */
 export type CharacterCardData = {
@@ -25,6 +26,7 @@ export type CharacterCardData = {
   updatedAt: Date;
   summary: string[];
   avatarMediaId: string | null;
+  avatarCrop: AvatarCrop | null;
   tags: { id: string; name: string }[];
 };
 
@@ -107,7 +109,11 @@ export function listLibraryCharacters(
     const ids = rows.map((row) => row.id);
     const [avatars, tagRows] = await Promise.all([
       db
-        .select({ characterId: characterMedia.characterId, mediaId: characterMedia.mediaId })
+        .select({
+          characterId: characterMedia.characterId,
+          mediaId: characterMedia.mediaId,
+          crop: characterMedia.crop,
+        })
         .from(characterMedia)
         .where(and(inArray(characterMedia.characterId, ids), eq(characterMedia.role, "avatar"))),
       db
@@ -117,7 +123,7 @@ export function listLibraryCharacters(
         .where(inArray(characterTags.characterId, ids))
         .orderBy(asc(tags.name)),
     ]);
-    const avatarBy = new Map(avatars.map((row) => [row.characterId, row.mediaId]));
+    const avatarBy = new Map(avatars.map((row) => [row.characterId, row]));
     const tagsBy = new Map<string, { id: string; name: string }[]>();
     for (const row of tagRows) {
       const list = tagsBy.get(row.characterId) ?? [];
@@ -128,7 +134,8 @@ export function listLibraryCharacters(
     return rows.map(({ values, ...row }) => ({
       ...row,
       summary: summarizeCharacter(values ?? {}),
-      avatarMediaId: avatarBy.get(row.id) ?? null,
+      avatarMediaId: avatarBy.get(row.id)?.mediaId ?? null,
+      avatarCrop: avatarBy.get(row.id)?.crop ?? null,
       tags: tagsBy.get(row.id) ?? [],
     }));
   });

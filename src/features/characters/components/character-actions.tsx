@@ -3,7 +3,8 @@
 import { Pencil, Plus, Star, Trash2 } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { motion } from "motion/react";
+import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -16,6 +17,7 @@ import {
 } from "@/features/characters/actions";
 import type { BasicInfoFormState } from "@/features/characters/basic-info";
 import { messages } from "@/i18n";
+import { DURATION, EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { BasicInfoDialog } from "./basic-info-dialog";
@@ -114,28 +116,44 @@ export function FavoriteButton({
   className?: string;
 }) {
   const [pending, startTransition] = useTransition();
-  const label = isFavorite ? t.removeFavorite : t.addFavorite;
+  // Flip at once; the server's answer (or a failure) settles the real value.
+  const [shown, setShown] = useOptimistic(isFavorite);
+  const label = shown ? t.removeFavorite : t.addFavorite;
   return (
     <Button
       variant="ghost"
       size={size}
       aria-label={label}
-      aria-pressed={isFavorite}
+      aria-pressed={shown}
       title={label}
       disabled={pending}
       className={className}
       onClick={() =>
         startTransition(async () => {
+          setShown(!isFavorite);
           const result = await setFavoriteAction(characterId, !isFavorite);
           if (result.ok) toast.success(isFavorite ? t.favoriteRemoved : t.favoriteAdded);
           else toast.error(result.error.message);
         })
       }
     >
-      <Star
-        aria-hidden
-        className={cn(isFavorite ? "fill-warning text-warning" : "text-muted-foreground")}
-      />
+      {/* A small pop when turned on, a dip when turned off; starts from the current scale. */}
+      <motion.span
+        className="inline-flex"
+        initial={false}
+        animate={
+          shown ? { scale: [null, 1.3, 1], rotate: [null, -14, 0] } : { scale: [null, 0.82, 1] }
+        }
+        transition={{ duration: DURATION.slow, ease: EASE_OUT }}
+      >
+        <Star
+          aria-hidden
+          className={cn(
+            "transition-colors duration-(--duration-base)",
+            shown ? "fill-warning text-warning" : "text-muted-foreground",
+          )}
+        />
+      </motion.span>
     </Button>
   );
 }

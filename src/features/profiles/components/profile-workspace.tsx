@@ -3,6 +3,7 @@
 import { useCallback, useId, useReducer, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { FadeIn } from "@/components/shared/fade-in";
 import {
   addSectionAction,
   reorderSectionsAction,
@@ -192,9 +193,11 @@ export function ProfileWorkspace({
       />
 
       {view === "preview" ? (
-        <ProfilePreview name={name} sections={state.sections} drafts={state.drafts} />
+        <FadeIn key="preview">
+          <ProfilePreview name={name} sections={state.sections} drafts={state.drafts} />
+        </FadeIn>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
+        <FadeIn key="edit" className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
           <aside className="lg:sticky lg:top-36 lg:self-start">
             <SectionNav
               sections={state.sections}
@@ -206,25 +209,26 @@ export function ProfileWorkspace({
             />
           </aside>
           {active && activeDraft ? (
-            <SectionPanel
-              key={active.id}
-              characterId={profile.characterId}
-              section={active}
-              draft={activeDraft}
-              sourceGroups={sourceGroups}
-              idPrefix={idPrefix}
-              dispatch={dispatch}
-              onEditSources={() => setDialog({ kind: "sources", section: active })}
-              ai={{
-                job: aiJobs.jobs[active.id],
-                open: aiOpenFor === active.id,
-                setOpen: (open) => setAiOpenFor(open ? active.id : null),
-                track: aiJobs.track,
-                forget: () => aiJobs.forget(active.id),
-              }}
-            />
+            <FadeIn key={active.id} className="min-w-0">
+              <SectionPanel
+                characterId={profile.characterId}
+                section={active}
+                draft={activeDraft}
+                sourceGroups={sourceGroups}
+                idPrefix={idPrefix}
+                dispatch={dispatch}
+                onEditSources={() => setDialog({ kind: "sources", section: active })}
+                ai={{
+                  job: aiJobs.jobs[active.id],
+                  open: aiOpenFor === active.id,
+                  setOpen: (open) => setAiOpenFor(open ? active.id : null),
+                  track: aiJobs.track,
+                  forget: () => aiJobs.forget(active.id),
+                }}
+              />
+            </FadeIn>
           ) : null}
-        </div>
+        </FadeIn>
       )}
 
       {dialog?.kind === "add" && (

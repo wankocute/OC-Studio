@@ -88,6 +88,7 @@ erDiagram
         text role
         int position
         bool is_primary
+        jsonb crop
     }
     tags {
         uuid id PK
@@ -149,10 +150,10 @@ PK `(source_character_id, fact_ref, target_character_id)`; index `character_refe
 
 ### `media_assets`, `character_media`
 
-| Bảng              | Ràng buộc                                                                                                                                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `media_assets`    | `storage_key` UNIQUE, không rỗng, ≤ 1 024; `original_filename` ≤ 255; `mime_type ~ '^image/…'`; `byte_size > 0`; `width`/`height` cùng NULL hoặc cùng > 0                                                                                                     |
-| `character_media` | PK `(character_id, media_id)`; FK `character_id` ON DELETE CASCADE, `media_id` ON DELETE RESTRICT; `role ∈ {avatar, reference}`; `position ≥ 0`; UNIQUE một `avatar` mỗi OC (partial index); UNIQUE một `is_primary` mỗi OC (partial index); index `media_id` |
+| Bảng              | Ràng buộc                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `media_assets`    | `storage_key` UNIQUE, không rỗng, ≤ 1 024; `original_filename` ≤ 255; `mime_type ~ '^image/…'`; `byte_size > 0`; `width`/`height` cùng NULL hoặc cùng > 0                                                                                                                                                                                                                                                                        |
+| `character_media` | PK `(character_id, media_id)`; FK `character_id` ON DELETE CASCADE, `media_id` ON DELETE RESTRICT; `role ∈ {avatar, reference}`; `position ≥ 0`; UNIQUE một `avatar` mỗi OC (partial index); UNIQUE một `is_primary` mỗi OC (partial index); index `media_id`; `crop` chỉ cho `avatar` (CHECK, JSON object `{x,y,width,height}` là phân số 0–1 của ảnh gốc, Zod `avatarCropSchema` kiểm tra khi ghi; NULL = hình vuông giữa ảnh) |
 
 ### `tags`, `character_tags`, `collections`, `character_collections`
 
@@ -258,6 +259,7 @@ Mức cô lập: READ COMMITTED mặc định; tính đúng dựa trên khóa d�
 
 - `MediaStorage` (`src/features/media/server/storage.ts`): `put` / `get` (stream) / `delete` theo storage key. Hai bản: `BlobStorage` (Vercel Blob **private**, khi có `BLOB_READ_WRITE_TOKEN`; pathname blob = storage key, không hậu tố ngẫu nhiên, không ghi đè) và `LocalFileStorage` tại `MEDIA_STORAGE_DIR` (mặc định `<dự án>/storage`, ngoài `public/`; chạy local). Trên Vercel mà thiếu token ⇒ lỗi cấu hình, không ghi đĩa. Vì key giống nhau ở cả hai nơi, chuyển ảnh sang Blob (`pnpm media:to-blob`) không đổi dòng nào. Key do server sinh (`media/YYYY/MM/<uuid>.<ext>`), được kiểm tra bằng regex và đường dẫn phân giải phải nằm trong thư mục gốc ⇒ không có path traversal. Ghi qua file tạm rồi đổi tên (không để lại file dở dang).
 - Upload trực tiếp (Blob — body request Vercel tối đa 4,5 MB): `prepareImageUploadAction` sinh key → trình duyệt xin token ở `POST /api/media/upload` (cần phiên đăng nhập; token chỉ cho đúng dạng key, ảnh PNG/JPEG/GIF/WebP, ≤ 8 MB, không ghi đè, hết hạn 10 phút) và tải file lên Blob → `attachUploadedImageAction` → `attachUploadedImage`: từ chối key đã có trong `media_assets` (không xóa file đó), đọc lại tối đa 8 MB từ Blob, kiểm tra chữ ký tệp, file không hợp lệ bị xóa, rồi cùng bước ghi database như dưới. Không dùng webhook `onUploadCompleted`.
+- Avatar: chọn ảnh → hộp thoại cắt (`AvatarCropDialog`) → vùng cắt được gửi **cùng** lần upload và ghi trong cùng transaction `createAndAttach`, nên Hủy hoặc lỗi không đổi avatar cũ. File gốc không bị cắt; "Chỉnh vùng cắt" (`setAvatarCropAction` → `setAvatarCrop`) chỉ đổi `character_media.crop`. `CharacterAvatar` hiển thị vùng cắt bằng CSS (`avatarCropStyle`). Kích thước JPEG được đọc theo hướng EXIF (ảnh điện thoại xoay 90° báo đúng rộng × cao).
 - Upload qua server (đĩa, `uploadCharacterImage`): kiểm tra kích thước (≤ 8 MB; body Server Action giới hạn 9 MB) → nhận diện **chữ ký tệp** (PNG/JPEG/GIF/WebP; SVG bị từ chối) và kích thước ảnh từ header → ghi file → `createAndAttach` (một transaction: tạo `media_assets`, gắn `character_media`, thay avatar cũ). Nếu bước database lỗi, file vừa ghi bị xóa. Avatar bị thay và ảnh bị gỡ được xóa (dòng + file) khi không còn nhân vật nào dùng (`deleteIfUnused`).
 - Phục vụ: `GET /media/[id]` kiểm tra phiên, tra `media_assets` theo UUID, **stream** qua storage (ảnh > 4,5 MB vẫn trả được), trả `Content-Type` đã nhận diện, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Cache-Control: private, max-age=31536000, immutable` và `ETag` = id (một id không bao giờ đổi nội dung; `If-None-Match` khớp ⇒ 304 mà không đọc database/Blob). Client không bao giờ gửi đường dẫn.
 - Xóa nhân vật là xóa mềm nên ảnh của nó được giữ (để khôi phục); chỉ gỡ ảnh mới xóa file (Blob hoặc đĩa) khi không còn ai dùng.
