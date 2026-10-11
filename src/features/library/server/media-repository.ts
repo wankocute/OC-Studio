@@ -55,6 +55,17 @@ export function createMediaRepository(db: Database) {
         return row!;
       }),
 
+    /** Whether any asset already records this storage key (an upload must use a fresh one). */
+    hasStorageKey: (storageKey: string) =>
+      guard(async () => {
+        const [row] = await db
+          .select({ id: mediaAssets.id })
+          .from(mediaAssets)
+          .where(eq(mediaAssets.storageKey, storageKey))
+          .limit(1);
+        return Boolean(row);
+      }),
+
     getAsset: (id: string) =>
       guard(async () => {
         const [row] = await db.select().from(mediaAssets).where(eq(mediaAssets.id, id));

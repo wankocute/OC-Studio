@@ -1,5 +1,6 @@
 "use client";
 
+import { upload as uploadToBlob } from "@vercel/blob/client";
 import { ImagePlus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,12 +15,50 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { MediaRole } from "@/db/schema/library";
-import { uploadCharacterImageAction } from "@/features/media/actions";
+import {
+  attachUploadedImageAction,
+  prepareImageUploadAction,
+  uploadCharacterImageAction,
+} from "@/features/media/actions";
 import { MEDIA_UPLOAD_LIMITS } from "@/features/media/image-signature";
 import { messages } from "@/i18n";
+import type { ActionResult } from "@/lib/action-result";
 
 const t = messages.media;
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
+const BLOB_UPLOAD_URL = "/api/media/upload";
+
+/**
+ * With Vercel Blob the browser sends the file straight to the store (a server request is
+ * limited to 4.5 MB) and the server then checks and attaches it; locally it goes through a
+ * Server Action to the disk. The server picks the way and the key.
+ */
+async function sendImage(characterId: string, role: MediaRole, file: File): Promise<ActionResult> {
+  const plan = await prepareImageUploadAction({ contentType: file.type, size: file.size });
+  if (!plan.ok) return plan;
+  if (plan.data.mode === "form") {
+    const formData = new FormData();
+    formData.set("characterId", characterId);
+    formData.set("role", role);
+    formData.set("file", file);
+    return uploadCharacterImageAction(formData);
+  }
+  try {
+    await uploadToBlob(plan.data.storageKey, file, {
+      access: "private",
+      handleUploadUrl: BLOB_UPLOAD_URL,
+      contentType: file.type,
+    });
+  } catch {
+    return { ok: false, error: { code: "upload_failed", message: t.errors.storage } };
+  }
+  return attachUploadedImageAction({
+    characterId,
+    role,
+    storageKey: plan.data.storageKey,
+    filename: file.name,
+  });
+}
 
 function formatSize(bytes: number): string {
   return bytes >= 1024 * 1024
@@ -70,12 +109,8 @@ export function ImageUploadButton({
 
   const upload = () => {
     if (!file) return;
-    const formData = new FormData();
-    formData.set("characterId", characterId);
-    formData.set("role", role);
-    formData.set("file", file);
     startTransition(async () => {
-      const result = await uploadCharacterImageAction(formData);
+      const result = await sendImage(characterId, role, file);
       if (result.ok) {
         toast.success(t.uploaded);
         setFile(null);

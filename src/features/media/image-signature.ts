@@ -91,8 +91,19 @@ export function detectImage(bytes: Uint8Array): DetectedImage | null {
   return detectPng(bytes) ?? detectJpeg(bytes) ?? detectGif(bytes) ?? detectWebp(bytes);
 }
 
+/** Declared types accepted for an upload, with the extension of the generated key. */
+export const UPLOAD_CONTENT_TYPES = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+} as const satisfies Record<DetectedImage["mimeType"], DetectedImage["extension"]>;
+
 export const MEDIA_UPLOAD_LIMITS = {
-  /** Maximum upload size. Server Actions body limit is configured just above this. */
+  /**
+   * Maximum upload size. Server Actions body limit is configured just above this (local disk);
+   * with Vercel Blob the browser uploads directly and the token enforces it.
+   */
   maxBytes: 8 * 1024 * 1024,
   maxMegabytes: 8,
 } as const;

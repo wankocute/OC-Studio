@@ -13,7 +13,10 @@ import {
   isValidStorageKey,
   LocalFileStorage,
   MediaStorageUnavailableError,
+  readStoredBytes,
 } from "./storage";
+
+const MAX = 1024 * 1024;
 
 let root: string;
 let storage: LocalFileStorage;
@@ -55,7 +58,7 @@ describe("LocalFileStorage", () => {
     const key = createStorageKey("png");
     await storage.put(key, PNG_1X1);
     expect(storage.resolve(key).startsWith(path.resolve(root) + path.sep)).toBe(true);
-    expect(new Uint8Array((await storage.get(key))!)).toEqual(PNG_1X1);
+    expect(await readStoredBytes(storage, key, MAX)).toEqual(PNG_1X1);
     await storage.delete(key);
     expect(await storage.get(key)).toBeNull();
     await storage.delete(key); // idempotent
@@ -78,7 +81,7 @@ describe("LocalFileStorage", () => {
     const fresh = new LocalFileStorage(path.join(root, "not", "yet", "created"));
     const key = createStorageKey("png");
     await fresh.put(key, PNG_1X1);
-    expect(await fresh.get(key)).toEqual(Buffer.from(PNG_1X1));
+    expect(await readStoredBytes(fresh, key, MAX)).toEqual(PNG_1X1);
   });
 
   it("explains an unusable root directory", async () => {
@@ -92,5 +95,12 @@ describe("LocalFileStorage", () => {
 
   it("returns null for missing files", async () => {
     expect(await storage.get(createStorageKey("png"))).toBeNull();
+    expect(await readStoredBytes(storage, createStorageKey("png"), MAX)).toBe("missing");
+  });
+
+  it("refuses to read more than the limit", async () => {
+    const key = createStorageKey("png");
+    await storage.put(key, PNG_1X1);
+    expect(await readStoredBytes(storage, key, PNG_1X1.byteLength - 1)).toBe("too_large");
   });
 });

@@ -12,8 +12,13 @@ import { connectTestDatabase } from "@/test/integration-context";
 
 import { GIF_1X1, PNG_1X1 } from "../test-images";
 
-import { MediaUploadError, removeCharacterImage, uploadCharacterImage } from "./media-service";
-import { LocalFileStorage } from "./storage";
+import {
+  attachUploadedImage,
+  MediaUploadError,
+  removeCharacterImage,
+  uploadCharacterImage,
+} from "./media-service";
+import { createStorageKey, LocalFileStorage, readStoredBytes } from "./storage";
 
 const { db } = connectTestDatabase();
 const media = createMediaRepository(db);
@@ -55,7 +60,7 @@ describe("uploadCharacterImage", () => {
     });
     expect(asset.storageKey).toMatch(/^media\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.png$/);
     expect(asset.originalFilename).toBe("....ảnh tham khảo.png"); // slashes stripped, kept for display only
-    expect(new Uint8Array((await storage.get(asset.storageKey))!)).toEqual(PNG_1X1);
+    expect(await readStoredBytes(storage, asset.storageKey, 1_000)).toEqual(PNG_1X1);
     expect(await media.listForCharacter(characterId)).toHaveLength(1);
   });
 
@@ -118,6 +123,80 @@ describe("uploadCharacterImage", () => {
       [a.id, 0],
       [b.id, 1],
     ]);
+  });
+});
+
+describe("attachUploadedImage (browser uploaded straight to the store)", () => {
+  /** What the browser does with a Blob client token: put bytes under the server-given key. */
+  async function browserUpload(bytes: Uint8Array, extension = "png") {
+    const key = createStorageKey(extension);
+    await storage.put(key, bytes);
+    return key;
+  }
+
+  it("checks the stored bytes and attaches them", async () => {
+    const storageKey = await browserUpload(GIF_1X1, "png"); // declared png, really a gif
+    const asset = await attachUploadedImage(deps(), {
+      characterId,
+      role: "avatar",
+      storageKey,
+      filename: "a.png",
+    });
+    expect(asset).toMatchObject({
+      storageKey,
+      mimeType: "image/gif",
+      byteSize: GIF_1X1.byteLength,
+    });
+    expect((await media.listForCharacter(characterId)).map((link) => link.role)).toEqual([
+      "avatar",
+    ]);
+  });
+
+  it("deletes a stored file that is not an image or too large", async () => {
+    const fake = await browserUpload(new TextEncoder().encode("<svg onload=alert(1)>"));
+    await expect(
+      attachUploadedImage(deps(), { characterId, role: "avatar", storageKey: fake }),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    const huge = new Uint8Array(8 * 1024 * 1024 + 1);
+    huge.set(PNG_1X1);
+    const big = await browserUpload(huge);
+    await expect(
+      attachUploadedImage(deps(), { characterId, role: "avatar", storageKey: big }),
+    ).rejects.toMatchObject({ code: "too_large" });
+    expect(await storedFiles()).toEqual([]);
+    expect(await db.select().from(mediaAssets)).toEqual([]);
+  });
+
+  it("refuses a missing upload, a foreign key shape and a key already in use (keeping its file)", async () => {
+    await expect(
+      attachUploadedImage(deps(), {
+        characterId,
+        role: "avatar",
+        storageKey: createStorageKey("png"),
+      }),
+    ).rejects.toMatchObject({ code: "missing" });
+    await expect(
+      attachUploadedImage(deps(), { characterId, role: "avatar", storageKey: "../../etc/passwd" }),
+    ).rejects.toMatchObject({ code: "missing" });
+
+    const used = await uploadCharacterImage(deps(), {
+      characterId,
+      role: "reference",
+      bytes: PNG_1X1,
+    });
+    await expect(
+      attachUploadedImage(deps(), { characterId, role: "avatar", storageKey: used.storageKey }),
+    ).rejects.toMatchObject({ code: "missing" });
+    expect(await readStoredBytes(storage, used.storageKey, 1_000)).toEqual(PNG_1X1);
+  });
+
+  it("removes the uploaded file when the database step fails", async () => {
+    const storageKey = await browserUpload(PNG_1X1);
+    await createCharacterRepository(db).softDelete(characterId, 1);
+    await expect(
+      attachUploadedImage(deps(), { characterId, role: "avatar", storageKey }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    expect(await storedFiles()).toEqual([]);
   });
 });
 
