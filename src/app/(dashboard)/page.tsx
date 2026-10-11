@@ -25,12 +25,6 @@ import {
   getLibraryStats,
   listLibraryCharacters,
 } from "@/features/characters/server/library-queries";
-import { AiStatus, AiStatusFallback } from "@/features/system-status/components/ai-status";
-import {
-  DatabaseStatus,
-  DatabaseStatusFallback,
-} from "@/features/system-status/components/database-status";
-import { StatusRow } from "@/features/system-status/components/status-row";
 import { messages } from "@/i18n";
 
 const t = messages.dashboard;
@@ -52,7 +46,7 @@ function Stat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; v
 
 /**
  * Library numbers and recent characters. A database failure is shown in place, so the rest of
- * the dashboard (including the PostgreSQL status) keeps working.
+ * the dashboard keeps working.
  */
 async function LibraryOverview() {
   let stats, recent;
@@ -116,48 +110,24 @@ export default function DashboardPage() {
         actions={<CreateCharacterButton />}
       />
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <CardHeader className="gap-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-              <Feather className="size-5" aria-hidden />
-            </div>
-            <CardTitle className="text-xl font-semibold">{t.welcomeTitle}</CardTitle>
-            <CardDescription className="max-w-prose text-pretty">{t.welcomeBody}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link href="/characters">
-                <BookUser data-icon="inline-start" aria-hidden />
-                {t.openLibrary}
-                <ArrowRight data-icon="inline-end" aria-hidden />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>{t.statusTitle}</CardTitle>
-            <CardDescription>{t.statusDescription}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="divide-y">
-              <StatusRow
-                label={messages.status.application}
-                tone="success"
-                value={messages.status.applicationReady}
-              />
-              <Suspense fallback={<DatabaseStatusFallback />}>
-                <DatabaseStatus />
-              </Suspense>
-              <Suspense fallback={<AiStatusFallback />}>
-                <AiStatus />
-              </Suspense>
-            </dl>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader className="gap-3">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+            <Feather className="size-5" aria-hidden />
+          </div>
+          <CardTitle className="text-xl font-semibold">{t.welcomeTitle}</CardTitle>
+          <CardDescription className="max-w-prose text-pretty">{t.welcomeBody}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <Link href="/characters">
+              <BookUser data-icon="inline-start" aria-hidden />
+              {t.openLibrary}
+              <ArrowRight data-icon="inline-end" aria-hidden />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Suspense
         fallback={

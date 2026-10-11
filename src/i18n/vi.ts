@@ -81,8 +81,6 @@ export const vi = {
     welcomeBody:
       "Nơi lưu giữ những nhân vật bạn tạo ra — từ tiểu sử, tính cách đến các mối quan hệ — để dùng cho truyện và roleplay.",
     openLibrary: "Mở thư viện nhân vật",
-    statusTitle: "Trạng thái ứng dụng",
-    statusDescription: "Tình trạng các thành phần nền tảng.",
     statsLabel: "Số liệu thư viện",
     statCharacters: "Nhân vật",
     statFavorites: "Yêu thích",
@@ -823,11 +821,17 @@ export const vi = {
     imageAlt: (name: string) => `Ảnh của ${name}`,
     avatarAlt: (name: string) => `Ảnh đại diện của ${name}`,
     uploaded: "Đã tải ảnh lên.",
+    uploadedMany: (count: number) => `Đã tải lên ${count} ảnh.`,
+    uploadPartlyFailed: (failed: number) =>
+      `${failed} ảnh chưa tải được và vẫn được giữ trong danh sách để thử lại.`,
     removed: "Đã gỡ ảnh.",
     uploading: "Đang tải lên…",
+    uploadingProgress: (done: number, total: number) => `Đang tải lên ${done}/${total}…`,
     upload: "Tải lên",
     previewTitle: "Xem trước ảnh",
     previewDescription: (name: string, size: string) => `${name} · ${size}`,
+    previewDescriptionMany: (count: number, size: string) => `${count} ảnh · ${size}`,
+    removeFromSelection: (name: string) => `Bỏ ${name} khỏi danh sách`,
     chooseFile: "Chọn ảnh",
     hint: (maxMb: number) => `PNG, JPEG, WebP hoặc GIF, tối đa ${maxMb} MB.`,
     crop: {
