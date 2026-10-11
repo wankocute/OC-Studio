@@ -18,6 +18,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { FIELD_DRAG_ATTRIBUTE } from "@/components/shared/scroll-to-top";
 import { messages } from "@/i18n";
 import { EASE_OUT, MOTION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,7 @@ export function binZone(point: { x: number; y: number }, bin: Rect): BinZone {
 function resetBody() {
   document.body.style.cursor = "";
   document.body.style.userSelect = "";
+  document.body.removeAttribute(FIELD_DRAG_ATTRIBUTE);
 }
 
 type Phase = "idle" | "dragging" | "returning" | "shredding";
@@ -216,6 +218,8 @@ export function FieldShredHandle({
     lifted.current = on;
     document.body.style.cursor = on ? "grabbing" : "";
     document.body.style.userSelect = on ? "none" : "";
+    // The floating scroll-to-top button shares the bin's corner: it steps aside meanwhile.
+    document.body.toggleAttribute(FIELD_DRAG_ATTRIBUTE, on);
     onLiftChange(on);
   };
 

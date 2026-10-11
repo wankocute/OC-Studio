@@ -19,6 +19,7 @@ export const vi = {
     settings: "Cài đặt",
     toggleSidebar: "Thu gọn / mở rộng thanh bên",
     mainNavigation: "Điều hướng chính",
+    scrollToTop: "Cuộn lên đầu trang",
   },
   common: {
     comingSoon: "Sắp có",
