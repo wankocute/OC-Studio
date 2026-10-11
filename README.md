@@ -183,7 +183,7 @@ pnpm install
 
 ### Migrations
 
-Schema Drizzle ở `src/db/schema/` (10 bảng — [docs/database-design.md](./docs/database-design.md)), migrations ở `src/db/migrations/`. Quy trình đầy đủ, sao lưu và database test: [docs/database-migrations.md](./docs/database-migrations.md).
+Schema Drizzle ở `src/db/schema/` (16 bảng — [docs/database-design.md](./docs/database-design.md)), migrations ở `src/db/migrations/`. Quy trình đầy đủ, sao lưu và database test: [docs/database-migrations.md](./docs/database-migrations.md).
 
 ```bash
 pnpm db:migrate    # áp dụng migration vào DATABASE_URL (sao lưu trước nếu đã có dữ liệu)
@@ -201,13 +201,15 @@ pnpm dev           # http://localhost:3000
 pnpm build && pnpm start   # bản production
 ```
 
-**Đăng nhập:** bản production (`pnpm start`, Railway) bắt buộc có `APP_PASSWORD` và `AUTH_SECRET`
+**Đăng nhập:** bản production (`pnpm start`, Vercel) bắt buộc có `APP_PASSWORD` và `AUTH_SECRET`
 (xem `.env.example`); thiếu thì mọi trang trả lỗi 503. Khi chạy `pnpm dev`, để trống cả hai thì không
 cần đăng nhập.
 
-**Deploy lên Railway** (một service chạy liên tục + PostgreSQL + Volume cho ảnh):
-xem [`docs/deploy-railway.md`](docs/deploy-railway.md). Lệnh khởi động production:
-`pnpm start:prod` (kiểm tra thư mục ảnh → migration → `next start`).
+**Deploy miễn phí lên Vercel (Hobby) + Neon Postgres + Vercel Blob (private):** xem
+[`docs/deploy-vercel.md`](docs/deploy-vercel.md) — từng bước, giới hạn gói free, chuyển database
+local lên Neon (`pg_dump`/`pg_restore`) và ảnh cũ lên Blob (`pnpm media:to-blob`). Trên Vercel,
+build chạy `pnpm vercel-build` (migration trên chuỗi kết nối trực tiếp `DATABASE_URL_UNPOOLED`, rồi
+`next build`); bản preview không chạy migration.
 
 ### Trình biên tập dữ kiện
 
@@ -224,7 +226,7 @@ Trong hồ sơ chi tiết (cả chế độ Biên tập và Xem trước), bấm
 
 ### Ảnh tải lên
 
-Ảnh được lưu trên đĩa ở `MEDIA_STORAGE_DIR` (mặc định `<thư mục dự án>/storage`, ngoài `public/` và đã nằm trong `.gitignore`). Database chỉ lưu metadata và storage key; ảnh được phục vụ qua `GET /media/<id>` (tra cứu theo id trong database, không bao giờ theo đường dẫn do client gửi). Chấp nhận PNG, JPEG, WebP, GIF tối đa 8 MB — loại tệp được xác định bằng chữ ký tệp, không tin phần mở rộng hay MIME do trình duyệt gửi. Hãy sao lưu thư mục này cùng với database.
+Khi chạy local, ảnh được lưu trên đĩa ở `MEDIA_STORAGE_DIR` (mặc định `<thư mục dự án>/storage`, ngoài `public/` và đã nằm trong `.gitignore`). Có `BLOB_READ_WRITE_TOKEN` (trên Vercel) thì ảnh nằm trong Vercel Blob **private** và trình duyệt tải ảnh thẳng lên Blob. Database chỉ lưu metadata và storage key; ảnh được phục vụ qua `GET /media/<id>` (tra cứu theo id trong database, không bao giờ theo đường dẫn do client gửi). Chấp nhận PNG, JPEG, WebP, GIF tối đa 8 MB — loại tệp được xác định bằng chữ ký tệp, không tin phần mở rộng hay MIME do trình duyệt gửi. Hãy sao lưu thư mục này cùng với database.
 
 ## Kiểm tra chất lượng
 

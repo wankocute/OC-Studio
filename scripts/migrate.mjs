@@ -1,11 +1,16 @@
 /**
- * Apply pending database migrations (production start, e.g. Railway).
- * Usage: node scripts/migrate.mjs — run from the project root.
- *
- * Plain Node ESM on purpose: uses only runtime dependencies (`pg`, `drizzle-orm`), no tsx,
- * no drizzle-kit and no .env.local, so it works in a pruned production install. It shares the
- * `drizzle.__drizzle_migrations` journal with `pnpm db:migrate`, so either can run first.
+ * Apply pending database migrations. Runs automatically in the Vercel build (`pnpm vercel-build`)
+ * before `next build`, so a deployment never serves code newer than its schema.
+ * Usage (from the project root): node scripts/migrate.mjs
  * Locally, load the env file explicitly: node --env-file=.env.local scripts/migrate.mjs
+ *
+ * Plain Node ESM on purpose: only runtime dependencies (`pg`, `drizzle-orm`), no tsx, no
+ * drizzle-kit and no .env.local. It shares the `drizzle.__drizzle_migrations` journal with
+ * `pnpm db:migrate`, so either can run first. Migrations are additive (see
+ * docs/database-migrations.md); a failure stops the build and the previous deployment stays live.
+ *
+ * URL: DATABASE_URL_UNPOOLED (Neon's direct connection — migrations take session-level locks a
+ * transaction pooler does not support), falling back to DATABASE_URL.
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,22 +38,30 @@ function describe(url) {
 }
 
 async function main() {
-  const url = process.env.DATABASE_URL?.trim();
+  const vercelEnv = process.env.VERCEL_ENV;
+  // Preview deployments (other git branches) must never change the production database.
+  if (vercelEnv && vercelEnv !== "production") {
+    console.log(`→ Bỏ qua migration (môi trường Vercel "${vercelEnv}", không phải production).`);
+    return 0;
+  }
+
+  const url = process.env.DATABASE_URL_UNPOOLED?.trim() || process.env.DATABASE_URL?.trim();
   if (!url) {
     console.error(
-      "✖ DATABASE_URL chưa được đặt. Trên Railway: Variables → DATABASE_URL = ${{Postgres.DATABASE_URL}}.",
+      "✖ Chưa có DATABASE_URL_UNPOOLED / DATABASE_URL. Trên Vercel: kết nối Neon trong tab " +
+        "Storage của project (xem docs/deploy-vercel.md), rồi deploy lại.",
     );
     return 1;
   }
 
-  const pool = new pg.Pool({ connectionString: url, max: 1, connectionTimeoutMillis: 15_000 });
+  const pool = new pg.Pool({ connectionString: url, max: 1, connectionTimeoutMillis: 30_000 });
   try {
     console.log(`→ Chạy migration trên ${describe(url)}…`);
     await migrate(drizzle({ client: pool }), { migrationsFolder });
     console.log("✔ Database đã ở phiên bản schema mới nhất.");
     return 0;
   } catch (error) {
-    console.error("✖ Migration thất bại — ứng dụng sẽ không khởi động:", error?.message ?? error);
+    console.error("✖ Migration thất bại — bản deploy này bị dừng:", error?.message ?? error);
     return 1;
   } finally {
     await pool.end();

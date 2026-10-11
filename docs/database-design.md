@@ -256,10 +256,12 @@ Mức cô lập: READ COMMITTED mặc định; tính đúng dựa trên khóa d�
 
 ### Lưu trữ và phục vụ ảnh (TASK 04)
 
-- `MediaStorage` (`src/features/media/server/storage.ts`): `put` / `get` / `delete` theo storage key. Bản hiện tại là `LocalFileStorage` tại `MEDIA_STORAGE_DIR` (mặc định `<dự án>/storage`, ngoài `public/`). Key do server sinh (`media/YYYY/MM/<uuid>.<ext>`), được kiểm tra bằng regex và đường dẫn phân giải phải nằm trong thư mục gốc ⇒ không có path traversal. Ghi qua file tạm rồi đổi tên (không để lại file dở dang).
-- Upload (`uploadCharacterImage`): kiểm tra kích thước (≤ 8 MB; body Server Action giới hạn 9 MB) → nhận diện **chữ ký tệp** (PNG/JPEG/GIF/WebP; SVG bị từ chối) và kích thước ảnh từ header → ghi file → `createAndAttach` (một transaction: tạo `media_assets`, gắn `character_media`, thay avatar cũ). Nếu bước database lỗi, file vừa ghi bị xóa. Avatar bị thay và ảnh bị gỡ được xóa (dòng + file) khi không còn nhân vật nào dùng (`deleteIfUnused`).
-- Phục vụ: `GET /media/[id]` tra `media_assets` theo UUID, đọc qua storage, trả `Content-Type` đã nhận diện, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, cache dài hạn (một id không bao giờ đổi nội dung). Client không bao giờ gửi đường dẫn.
-- Còn tồn tại: nếu xóa file của ảnh bị thay thất bại sau khi transaction đã commit, file mồ côi chỉ được ghi log (chưa có tác vụ dọn dẹp định kỳ).
+- `MediaStorage` (`src/features/media/server/storage.ts`): `put` / `get` (stream) / `delete` theo storage key. Hai bản: `BlobStorage` (Vercel Blob **private**, khi có `BLOB_READ_WRITE_TOKEN`; pathname blob = storage key, không hậu tố ngẫu nhiên, không ghi đè) và `LocalFileStorage` tại `MEDIA_STORAGE_DIR` (mặc định `<dự án>/storage`, ngoài `public/`; chạy local). Trên Vercel mà thiếu token ⇒ lỗi cấu hình, không ghi đĩa. Vì key giống nhau ở cả hai nơi, chuyển ảnh sang Blob (`pnpm media:to-blob`) không đổi dòng nào. Key do server sinh (`media/YYYY/MM/<uuid>.<ext>`), được kiểm tra bằng regex và đường dẫn phân giải phải nằm trong thư mục gốc ⇒ không có path traversal. Ghi qua file tạm rồi đổi tên (không để lại file dở dang).
+- Upload trực tiếp (Blob — body request Vercel tối đa 4,5 MB): `prepareImageUploadAction` sinh key → trình duyệt xin token ở `POST /api/media/upload` (cần phiên đăng nhập; token chỉ cho đúng dạng key, ảnh PNG/JPEG/GIF/WebP, ≤ 8 MB, không ghi đè, hết hạn 10 phút) và tải file lên Blob → `attachUploadedImageAction` → `attachUploadedImage`: từ chối key đã có trong `media_assets` (không xóa file đó), đọc lại tối đa 8 MB từ Blob, kiểm tra chữ ký tệp, file không hợp lệ bị xóa, rồi cùng bước ghi database như dưới. Không dùng webhook `onUploadCompleted`.
+- Upload qua server (đĩa, `uploadCharacterImage`): kiểm tra kích thước (≤ 8 MB; body Server Action giới hạn 9 MB) → nhận diện **chữ ký tệp** (PNG/JPEG/GIF/WebP; SVG bị từ chối) và kích thước ảnh từ header → ghi file → `createAndAttach` (một transaction: tạo `media_assets`, gắn `character_media`, thay avatar cũ). Nếu bước database lỗi, file vừa ghi bị xóa. Avatar bị thay và ảnh bị gỡ được xóa (dòng + file) khi không còn nhân vật nào dùng (`deleteIfUnused`).
+- Phục vụ: `GET /media/[id]` kiểm tra phiên, tra `media_assets` theo UUID, **stream** qua storage (ảnh > 4,5 MB vẫn trả được), trả `Content-Type` đã nhận diện, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Cache-Control: private, max-age=31536000, immutable` và `ETag` = id (một id không bao giờ đổi nội dung; `If-None-Match` khớp ⇒ 304 mà không đọc database/Blob). Client không bao giờ gửi đường dẫn.
+- Xóa nhân vật là xóa mềm nên ảnh của nó được giữ (để khôi phục); chỉ gỡ ảnh mới xóa file (Blob hoặc đĩa) khi không còn ai dùng.
+- Còn tồn tại: nếu xóa file của ảnh bị thay thất bại sau khi transaction đã commit, file mồ côi chỉ được ghi log (chưa có tác vụ dọn dẹp định kỳ). Upload trực tiếp bị bỏ dở (đóng trang sau khi file đã lên Blob, trước bước gắn) cũng để lại blob mồ côi.
 
 ## 11. Lỗi có cấu trúc
 
@@ -303,9 +305,8 @@ Hồ sơ là **văn bản** viết từ dữ kiện; dữ kiện vẫn chỉ n�
 
 ### AI từng mục (TASK 07)
 
-Ứng viên và bản xem trước nằm trong bộ nhớ server, tối đa 100 bản và hết hạn sau
-15 phút; khởi động lại server sẽ mất đề xuất chưa áp dụng. Không thêm bảng hoặc
-migration. Token ngẫu nhiên chỉ tham chiếu dữ liệu server, không nhận nội dung hay
+Ứng viên và bản xem trước nằm trong bảng `ai_section_tokens` (xem §13.1), tối đa 100
+bản và hết hạn sau 15 phút. Token ngẫu nhiên chỉ tham chiếu dữ liệu server, không nhận nội dung hay
 snapshot từ client. Bản xem trước bị tiêu thụ khi tạo (quyền nhạy cảm chỉ một lần),
 server đọc lại và từ chối nếu payload đã đổi. Không giữ transaction khi gọi provider.
 
@@ -334,10 +335,23 @@ Preview Gemini nêu Google có thể dùng nội dung Free Tier để cải thi�
 App không xác minh billing project từ key; người dùng phải chọn project Free Tier
 chưa bật billing. Không thay đổi lưu trữ/snapshot/history hoặc thêm migration.
 
-### Điểm mở rộng
+### 13.1 Trạng thái tạm cho serverless (Vercel)
 
-Nếu sau này cần giữ ứng viên qua lần khởi động lại, có thể đặc tả lưu trữ bền vững
-riêng. TASK 07 giữ ứng viên tạm; lịch sử chỉ ghi khi người dùng áp dụng.
+Trên Vercel mỗi request có thể chạy ở một instance khác, không có RAM chung. Ba bảng
+trong `src/db/schema/runtime.ts` (migration `0002_serverless_state`) thay cho các Map
+trong bộ nhớ trước đây. Đây là trạng thái **ngắn hạn**, không phải kho lưu lịch sử
+AI (`ai_generations` ở §14 vẫn chưa đặc tả):
+
+| Bảng                | Nội dung                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ai_section_tokens` | Bản xem trước (đúng dữ kiện người dùng đồng ý gửi) và đề xuất AI, theo token ngẫu nhiên; `kind ∈ {preview, candidate}`, `payload` JSONB, `expires_at` (15 phút). Xem trước bị tiêu thụ bằng `DELETE … RETURNING` (một lần). FK `section_id` ON DELETE CASCADE.                                                                                                                  |
+| `ai_section_jobs`   | Tác vụ nền: trạng thái, model, `deadline_at`, kết quả/lỗi, `expires_at` (15 phút sau khi xong; NULL khi đang chạy — CHECK bảo đảm). **Unique index một phần**: tối đa một tác vụ `queued/running` mỗi mục, nên hai request không bao giờ gọi provider hai lần. Tác vụ đang chạy quá `deadline_at` + 30 giây (instance bị dừng) được đánh dấu `failed`/`lost` ở lần đọc kế tiếp. |
+| `login_failures`    | Đếm đăng nhập sai theo cửa sổ cố định: khóa `ip:<địa chỉ>` và `*` (tổng). Tăng bằng một câu `INSERT … ON CONFLICT DO UPDATE`; đăng nhập đúng xóa dòng của client; dòng cũ bị dọn khi ghi.                                                                                                                                                                                       |
+
+Tác vụ AI chạy trong `after()` của Server Action ở chính instance nhận request (trang
+hồ sơ đặt `maxDuration = 300`, `AI_REQUEST_TIMEOUT_MS` ≤ 280 giây). Hủy ghi trạng thái
+vào bảng; instance đang chạy kiểm tra mỗi 2 giây và hủy request. Dữ liệu các bảng này
+không cần sao lưu và tự được dọn khi hết hạn.
 
 ## 14. Bảng được trì hoãn
 

@@ -14,7 +14,7 @@ Single source of truth for coding conventions. `CLAUDE.md` points here; if the t
 
 ## Product context
 
-Personal web app for creating and editing fictional character profiles (OCs) for writing and roleplay. Single user, runs locally against a local PostgreSQL. UI language: **Vietnamese**.
+Personal web app for creating and editing fictional character profiles (OCs) for writing and roleplay. Single user. Runs locally against a local PostgreSQL, and is deployed to Vercel (Hobby, serverless) with Neon Postgres and a private Vercel Blob store. UI language: **Vietnamese**.
 
 ## Scope rules (important)
 
@@ -86,7 +86,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Library field definitions: only compatible edits (`findBreakingChanges`); deprecate instead of delete; keys are never reused.
 - DDL: `pnpm db:generate --name=…`, review the SQL, then `pnpm db:migrate`. Never `drizzle-kit push`, never destructive SQL on databases with data, back up first. Old JSON is migrated on read (in memory) and saved at the current version on the next update.
 - Integration tests only touch databases whose name ends in `_test` (`src/test/test-database.ts` enforces it). Never run them against `DATABASE_URL`.
-- No tables for AI generations or stored templates until those are specified (profiles: TASK 06).
+- No tables for AI generations (an archive) or stored templates until those are specified (profiles: TASK 06). Short-lived serverless state (AI previews/jobs, login failures) lives in `src/db/schema/runtime.ts` — expiring rows, pruned on write.
 
 ## Server Actions & UI data flow
 
@@ -96,7 +96,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Edits that carry a `revision` must handle `revision_conflict` without losing or silently resubmitting stale input (see `BasicInfoDialog`).
 - Basic info edits go through `applyBasicInfo`: it rereads stored facts and changes only the six basic fields; fields in `explicit_none` / `not_applicable` / unsupported shapes are locked.
 - List state (search, sort, filters, view) lives in the URL (`library-params.ts`).
-- Images: never trust client MIME or file names — `detectImage` (file signature) decides the type; files go through `MediaStorage` (`src/features/media/server/storage.ts`) using generated keys only, and are served by `/media/[id]` (lookup by id). On a failed DB write the stored file is deleted; unused assets are cleaned up.
+- Images: never trust client MIME or file names — `detectImage` (file signature) decides the type; files go through `MediaStorage` (`src/features/media/server/storage.ts`: `BlobStorage` when `BLOB_READ_WRITE_TOKEN` is set, else `LocalFileStorage`) using server-generated keys only, and are streamed by `/media/[id]` (lookup by id). With Blob the browser uploads directly (`prepareImageUploadAction` → `/api/media/upload` token → `attachUploadedImageAction`, which re-reads and checks the stored bytes); never send image bytes through a function on Vercel (4.5 MB body limit). On a failed DB write the stored file is deleted; unused assets are cleaned up.
 - Dynamic routes and anything reading request data (DB, `params`, `searchParams`, `usePathname`) sit inside `<Suspense>` (Cache Components).
 - E2E tests must never use the developer database: Playwright starts its own server with `DATABASE_URL` pointing at `*_e2e_test` (`e2e/environment.ts`). Wait for hydration before interacting (see `openDialog` in `e2e/characters.spec.ts`, `[data-fact-editor][data-ready]` for the editor). Visited pages stay mounted but hidden (Activity), so match visible elements only. Playwright runs a **production build** (`pnpm build && pnpm start`, `NEXT_DIST_DIR=.next-e2e`): the dev server compiled routes on demand and hot-reloaded under parallel load, which made tests time out and hid a real bug (a button swapped to `type="submit"` during its own click).
 
@@ -121,12 +121,14 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 
 ## Login & deployment
 
-- Single user: `APP_PASSWORD` + `AUTH_SECRET` (≥ 32 chars). Code in `src/features/auth/`; deploy guide `docs/deploy-railway.md`.
+- Single user: `APP_PASSWORD` + `AUTH_SECRET` (≥ 32 chars). Code in `src/features/auth/`; deploy guide `docs/deploy-vercel.md`.
 - **Fail closed:** in production, a missing/invalid variable makes every request answer 503 (`resolveAuthConfig`). Only outside production, with both blank, is login disabled.
 - Session = stateless HMAC cookie `oc_session` (`session-token.ts`, 30 days, httpOnly, `secure` in production, `sameSite=lax`); the signing key mixes in the password, so changing either variable signs everyone out.
 - `src/proxy.ts` (Next 16's renamed middleware) gates every path except build assets. It is **not** the only check: every Server Action starts with `rejectUnauthenticatedAction()` and every Route Handler with `rejectUnauthenticatedRequest()` — action ids are global, so any route can invoke any action. New actions/handlers must do the same.
-- Public paths: `/login` (page + login action) and `POST /logout` only. Failed logins are rate-limited in memory (single instance).
-- Production start: `pnpm start:prod` (storage check → `scripts/migrate.mjs` with the drizzle-orm migrator → `next start`, which reads `PORT`). Scripts in that path use runtime dependencies only. Run exactly one instance (AI jobs and the login limiter live in memory).
+- Public paths: `/login` (page + login action) and `POST /logout` only. Failed logins are rate-limited in Postgres (`login_failures`, shared by all instances); if the counters cannot be read, login fails closed.
+- **Serverless (Vercel):** no shared memory, no persistent disk, 300 s per invocation, 4.5 MB request body. Never keep state in module memory or on disk — use Postgres (or Blob for files). Background work goes in `after()` and must finish within the route's `maxDuration` (the profile page sets 300; `AI_REQUEST_TIMEOUT_MS` ≤ 280 s). AI jobs: `getSectionAi()` → `createAiService(createAiJobStore(db))`; a job abandoned past its deadline is marked `lost` on the next read.
+- DB pool (`src/db/index.ts`): small on Vercel, with `attachDatabasePool`. The app uses Neon's pooled `DATABASE_URL`; migrations use the direct `DATABASE_URL_UNPOOLED`.
+- Deploy build: `pnpm vercel-build` (`vercel.json`) = `scripts/migrate.mjs` (drizzle-orm migrator, runtime deps only, skipped on preview deployments) → `next build`. Migrations must stay additive: the previous deployment keeps serving while a new one builds.
 
 ## Next.js 16 conventions
 
