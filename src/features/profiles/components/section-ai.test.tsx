@@ -139,7 +139,7 @@ describe("section AI dialog", () => {
     expect(screen.getByRole("button", { name: t.open })).toBeDisabled();
   });
 
-  it("starts a background job; the dialog closes while it runs and reopens on its state", async () => {
+  it("starts a background job: the dialog closes at once and reopens on its state", async () => {
     vi.mocked(previewSectionAiAction).mockResolvedValueOnce(preview());
     vi.mocked(startSectionAiAction).mockResolvedValueOnce({ ok: true, data: job() });
     render(<Harness />);
@@ -147,11 +147,9 @@ describe("section AI dialog", () => {
     const generate = await screen.findByRole("button", { name: t.generate });
     await waitFor(() => expect(generate).toBeEnabled());
     fireEvent.click(generate);
-    await screen.findByText(t.job.closeKeepRunning);
-
-    // Escape closes the dialog even though the job is running.
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    // Closed right away; the section button shows the running job.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(startSectionAiAction).toHaveBeenCalledTimes(1));
     const reopen = screen.getByRole("button", { name: t.job.running });
     expect(reopen).toBeEnabled();
     fireEvent.click(reopen);
@@ -289,6 +287,7 @@ describe("model picker", () => {
     // Untouched picker: the server uses its own default (no client-chosen id is sent).
     await waitFor(() => expect(startSectionAiAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(startSectionAiAction).mock.calls[0]![0]).not.toHaveProperty("model");
+    fireEvent.click(await screen.findByRole("button", { name: t.job.running }));
     expect(await screen.findByText(t.model.used("Gemini 3.8 Flash"))).toBeVisible();
   });
 });

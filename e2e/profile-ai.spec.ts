@@ -66,6 +66,11 @@ test("provider failures leave manual editing usable and regenerate clears sensit
   await expect(dialog.getByTestId("ai-facts-preview")).toContainText("identity.biological_sex");
   await dialog.getByRole("textbox", { name: "Yêu cầu viết (tùy chọn)" }).fill("E2E_RATE_LIMIT");
   await dialog.getByRole("button", { name: "Tạo nội dung", exact: true }).click();
+  // The dialog closes at once; the job fails on the server and its reason is shown on reopening.
+  await expect(dialog).not.toBeVisible();
+  const aiButton = page.getByTestId("section-ai-button").filter({ visible: true });
+  await expect(aiButton).toHaveText("Viết với AI", { timeout: 30_000 });
+  await aiButton.click();
   await expect(dialog.getByRole("alert")).toContainText("giới hạn lượt gọi");
   await dialog.getByRole("button", { name: "Tạo lại với quyền mới", exact: true }).click();
   await expect(dialog.getByTestId("ai-facts-preview")).not.toContainText("identity.biological_sex");

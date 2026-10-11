@@ -191,9 +191,13 @@ html.lenis body {
 .lenis.lenis-smooth {
   scroll-behavior: auto !important;
 }
-.lenis.lenis-stopped {
-  overflow: clip;
-}
+/*
+ * No `overflow: clip` on a stopped Lenis (its default stylesheet has one): Lenis only stops while
+ * a Radix modal locks the page, which already sets `overflow: hidden` on <body>. With <html>
+ * clipped too, that body overflow no longer goes to the viewport, so <body> became the scroll
+ * container and every sticky header and the sticky section lists jumped off-screen with an open
+ * menu on a scrolled page.
+ */
 .lenis [data-lenis-prevent] {
   overscroll-behavior: contain;
 }

@@ -117,7 +117,7 @@ test("trial flow: facts, profile, approval, outdated warning and print", async (
   );
 });
 
-test("dashboard shows recent characters and the AI configuration without secrets", async ({
+test("dashboard shows recent characters; settings show the AI configuration without secrets", async ({
   page,
 }, testInfo) => {
   const name = uniqueName("Gần đây", testInfo.project.name);
@@ -130,6 +130,10 @@ test("dashboard shows recent characters and the AI configuration without secrets
   await expect(cards.first()).toBeVisible();
   expect(await cards.count()).toBeLessThanOrEqual(5);
 
+  await expect(page.locator("body")).not.toContainText("postgresql://");
+
+  // The app status (database, AI) lives on the settings page.
+  await page.goto("/settings");
   const ai = page.locator("dl > div").filter({ hasText: "Trợ lý AI" });
   await expect(ai).toContainText(/Đã cấu hình|Chưa cấu hình/);
   await expect(ai).toContainText(/Gemini|OpenAI/);

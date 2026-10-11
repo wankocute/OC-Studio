@@ -691,6 +691,8 @@ test("dragging a field to the bin clears only its value; Escape or a miss change
   // The bin sits at the bottom centre of the viewport.
   const binCenter = { x: viewport.width / 2, y: viewport.height - 24 - 56 };
   const lift = async () => {
+    // Every field is shown, so filling "Tuổi" can scroll the handle under the sticky header.
+    await handle.evaluate((element) => element.scrollIntoView({ block: "center" }));
     const box = (await handle.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();

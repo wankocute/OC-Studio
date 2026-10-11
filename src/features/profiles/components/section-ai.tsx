@@ -75,11 +75,17 @@ export function SectionAi({
   const [busy, start] = useTransition();
   const lock = useRef(false);
   const saved = draft.status === "idle" || draft.status === "saved";
-  const active = isActiveJob(job);
+  /** "Generate" was clicked and the server has not taken the job yet (the dialog is closed). */
+  const [starting, setStarting] = useState(false);
+  const active = isActiveJob(job) || starting;
   const result = job?.status === "succeeded" ? job.result : undefined;
   const changed = result && result.draftRevision !== draft.draftRevision;
 
-  function run<T>(work: () => Promise<ActionResult<T>>, success: (data: T) => void) {
+  function run<T>(
+    work: () => Promise<ActionResult<T>>,
+    success: (data: T) => void,
+    failure?: () => void,
+  ) {
     if (lock.current) return;
     lock.current = true;
     setError(null);
@@ -94,6 +100,7 @@ export function SectionAi({
         lock.current = false;
       }
       if (outcome?.ok) success(outcome.data);
+      else failure?.();
     });
   }
   function prepare(next: string[] = []) {
@@ -138,7 +145,7 @@ export function SectionAi({
       <Button
         type="button"
         variant="outline"
-        disabled={!job && !saved}
+        disabled={starting || (!job && !saved)}
         title={!job && !saved ? t.savedFirst : undefined}
         onClick={openDialog}
         data-testid="section-ai-button"
@@ -388,6 +395,10 @@ export function SectionAi({
                     const token = preview.token;
                     setPreview(null);
                     setAllow([]);
+                    // The job runs on the server: close right away, the section button shows
+                    // that it is running. A refused start reopens the dialog with the reason.
+                    setOpen(false);
+                    setStarting(true);
                     run(
                       () =>
                         startSectionAiAction({
@@ -395,7 +406,14 @@ export function SectionAi({
                           instruction,
                           ...(model ? { model } : {}),
                         }),
-                      (view) => ai.track(view),
+                      (view) => {
+                        setStarting(false);
+                        ai.track(view);
+                      },
+                      () => {
+                        setStarting(false);
+                        setOpen(true);
+                      },
                     );
                   }}
                 >
