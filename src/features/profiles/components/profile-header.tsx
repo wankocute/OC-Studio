@@ -14,7 +14,6 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { SegmentedControl } from "@/components/shared/segmented-control";
 import { StatusSwap } from "@/components/shared/status-swap";
 import { Button } from "@/components/ui/button";
 import type { SectionDraftState } from "@/features/profiles/workspace/state";
@@ -23,8 +22,6 @@ import { cn } from "@/lib/utils";
 
 const t = messages.profiles;
 const timeFormat = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" });
-
-export type WorkspaceView = "edit" | "preview";
 
 type StatusView = {
   label: string;
@@ -68,8 +65,6 @@ export function ProfileHeader({
   name,
   active,
   otherUnsaved,
-  view,
-  onViewChange,
   onRetry,
   printAction,
 }: {
@@ -78,10 +73,8 @@ export function ProfileHeader({
   /** Draft state of the section being edited (status shown in the header). */
   active: SectionDraftState | undefined;
   otherUnsaved: number;
-  view: WorkspaceView;
-  onViewChange: (view: WorkspaceView) => void;
   onRetry: () => void;
-  /** "Print / Save PDF" control, shown in both views. */
+  /** "Print / Save PDF" control. */
   printAction?: ReactNode;
 }) {
   const status = active ? draftStatusView(active) : null;
@@ -104,7 +97,7 @@ export function ProfileHeader({
           </h1>
         </div>
         <div className="flex basis-full flex-wrap items-center gap-3 sm:basis-auto">
-          {status && Icon && view === "edit" && (
+          {status && Icon && (
             <p
               role="status"
               aria-live="polite"
@@ -122,31 +115,23 @@ export function ProfileHeader({
           {otherUnsaved > 0 && (
             <p className="text-xs text-muted-foreground">{t.status.otherSections(otherUnsaved)}</p>
           )}
-          {view === "edit" && active?.status === "error" && (
+          {active?.status === "error" && (
             <Button type="button" variant="outline" size="sm" onClick={onRetry}>
               <RefreshCw data-icon="inline-start" aria-hidden />
               {t.status.retry}
             </Button>
           )}
-          <SegmentedControl<WorkspaceView>
-            ariaLabel={t.view.label}
-            value={view}
-            onValueChange={(next) => next && onViewChange(next)}
-            options={[
-              { value: "edit", label: t.view.edit },
-              { value: "preview", label: t.view.preview },
-            ]}
-          />
-          {printAction}
+          {/* Same place as "Hồ sơ chi tiết" in the fact editor's header. */}
           <Button asChild variant="outline" size="sm">
             <Link href={`/characters/${characterId}/edit` as Route} title={t.openFactsHint}>
               <FileText data-icon="inline-start" aria-hidden />
               {t.openFacts}
             </Link>
           </Button>
+          {printAction}
         </div>
       </div>
-      {view === "edit" && active?.status === "error" && active.error && (
+      {active?.status === "error" && active.error && (
         <p role="alert" className="mt-2 text-sm text-destructive">
           {active.error}
         </p>

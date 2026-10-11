@@ -30,9 +30,8 @@ import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-guard";
 import { messages } from "@/i18n";
 import type { ActionResult } from "@/lib/action-result";
 
-import { ProfileHeader, type WorkspaceView } from "./profile-header";
+import { ProfileHeader } from "./profile-header";
 import { PrintDialog } from "./print-dialog";
-import { ProfilePreview } from "./profile-preview";
 import { AddSectionDialog, RenameSectionDialog, SourcesDialog } from "./section-dialogs";
 import { SectionNav } from "./section-nav";
 import { SectionPanel } from "./section-panel";
@@ -49,7 +48,7 @@ type Dialog =
 
 /**
  * Profile workspace: section list, rich text editor of the selected section (draft), approval,
- * history and a full preview. Structure changes (add, rename, reorder, hide, sources) are
+ * and history. Structure changes (add, rename, reorder, hide, sources) are
  * explicit actions guarded by the profile revision; section content autosaves on its own.
  */
 export function ProfileWorkspace({
@@ -70,7 +69,6 @@ export function ProfileWorkspace({
   const [state, dispatch] = useReducer(workspaceReducer, profile, (value) =>
     createWorkspaceState(value, initialSection),
   );
-  const [view, setView] = useState<WorkspaceView>("edit");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, startStructure] = useTransition();
   const isClient = useIsClient();
@@ -78,7 +76,6 @@ export function ProfileWorkspace({
   const [aiOpenFor, setAiOpenFor] = useState<string | null>(null);
   const openAi = useCallback((sectionId: string) => {
     dispatch({ type: "select", sectionId });
-    setView("edit");
     setAiOpenFor(sectionId);
   }, []);
   const onAiFinished = useCallback(
@@ -173,8 +170,6 @@ export function ProfileWorkspace({
         name={name}
         active={activeDraft}
         otherUnsaved={unsaved.filter((id) => id !== state.activeId).length}
-        view={view}
-        onViewChange={setView}
         onRetry={() => active && saveNow(active.id)}
         printAction={
           <PrintDialog
@@ -192,44 +187,38 @@ export function ProfileWorkspace({
         }
       />
 
-      {view === "preview" ? (
-        <FadeIn key="preview">
-          <ProfilePreview name={name} sections={state.sections} drafts={state.drafts} />
-        </FadeIn>
-      ) : (
-        <FadeIn key="edit" className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
-          <aside className="lg:sticky lg:top-36 lg:self-start">
-            <SectionNav
-              sections={state.sections}
-              statuses={statuses}
-              aiBadges={aiBadges}
-              activeId={state.activeId}
-              onSelect={(sectionId) => dispatch({ type: "select", sectionId })}
-              commands={commands}
+      <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
+        <aside className="lg:sticky lg:top-36 lg:self-start">
+          <SectionNav
+            sections={state.sections}
+            statuses={statuses}
+            aiBadges={aiBadges}
+            activeId={state.activeId}
+            onSelect={(sectionId) => dispatch({ type: "select", sectionId })}
+            commands={commands}
+          />
+        </aside>
+        {active && activeDraft ? (
+          <FadeIn key={active.id} className="min-w-0">
+            <SectionPanel
+              characterId={profile.characterId}
+              section={active}
+              draft={activeDraft}
+              sourceGroups={sourceGroups}
+              idPrefix={idPrefix}
+              dispatch={dispatch}
+              onEditSources={() => setDialog({ kind: "sources", section: active })}
+              ai={{
+                job: aiJobs.jobs[active.id],
+                open: aiOpenFor === active.id,
+                setOpen: (open) => setAiOpenFor(open ? active.id : null),
+                track: aiJobs.track,
+                forget: () => aiJobs.forget(active.id),
+              }}
             />
-          </aside>
-          {active && activeDraft ? (
-            <FadeIn key={active.id} className="min-w-0">
-              <SectionPanel
-                characterId={profile.characterId}
-                section={active}
-                draft={activeDraft}
-                sourceGroups={sourceGroups}
-                idPrefix={idPrefix}
-                dispatch={dispatch}
-                onEditSources={() => setDialog({ kind: "sources", section: active })}
-                ai={{
-                  job: aiJobs.jobs[active.id],
-                  open: aiOpenFor === active.id,
-                  setOpen: (open) => setAiOpenFor(open ? active.id : null),
-                  track: aiJobs.track,
-                  forget: () => aiJobs.forget(active.id),
-                }}
-              />
-            </FadeIn>
-          ) : null}
-        </FadeIn>
-      )}
+          </FadeIn>
+        ) : null}
+      </div>
 
       {dialog?.kind === "add" && (
         <AddSectionDialog

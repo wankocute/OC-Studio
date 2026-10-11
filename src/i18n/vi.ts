@@ -208,11 +208,6 @@ export const vi = {
     back: "Về hồ sơ",
     openProfile: "Hồ sơ chi tiết",
     openProfileHint: "Mở hồ sơ chi tiết của nhân vật này",
-    modeLabel: "Chế độ hiển thị",
-    modeHint: {
-      basic: "Những trường thường dùng nhất.",
-      advanced: "Toàn bộ trường, kể cả các trường chi tiết.",
-    },
     nav: {
       label: "Nhóm dữ kiện",
       general: "Thiết lập chung",
@@ -626,7 +621,6 @@ export const vi = {
     structureConflict:
       "Cấu trúc hồ sơ vừa được thay đổi ở tab khác. Hãy tải lại trang để thấy bản mới nhất.",
     hiddenNotice: "Mục này đang ẩn: vẫn sửa được nhưng không xuất hiện khi xem trước hồ sơ.",
-    view: { label: "Chế độ xem", edit: "Biên tập", preview: "Xem trước" },
     version: { label: "Phiên bản", draft: "Bản nháp", approved: "Bản đã duyệt" },
     editorLabel: (title: string) => `Nội dung mục ${title}`,
     placeholder: (title: string) => `Viết phần ${title.toLocaleLowerCase("vi")} của nhân vật…`,
@@ -707,11 +701,7 @@ export const vi = {
       back: "Danh sách phiên bản",
     },
     preview: {
-      title: "Xem trước hồ sơ",
-      source: "Nội dung",
       emptySection: "Chưa có nội dung.",
-      notApproved: "Chưa có bản đã duyệt.",
-      nothing: "Chưa có mục nào hiển thị.",
     },
     print: {
       open: "In / Lưu PDF",

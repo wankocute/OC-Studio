@@ -176,14 +176,6 @@ test("approves a draft, then keeps the approved version while the draft changes"
   stored = await sectionByKey(id, "personality");
   expect(storedText(stored.approved)).toBe("Điềm tĩnh, ít nói. Nhưng nóng nảy khi bị xúc phạm.");
   expect(await readRevisionKinds(stored.id)).toEqual(["approval", "approval"]);
-
-  // Preview: the whole profile, draft or approved.
-  await page.getByRole("radio", { name: "Xem trước" }).click();
-  const preview = page.getByTestId("profile-preview").filter({ visible: true });
-  await expect(preview.getByRole("heading", { name: "Tính cách" })).toBeVisible();
-  await expect(preview).toContainText("Nhưng nóng nảy khi bị xúc phạm.");
-  await page.getByRole("radio", { name: "Bản đã duyệt" }).click();
-  await expect(preview).toContainText("Chưa có bản đã duyệt.");
 });
 
 test("restores an older version as the draft without touching the approved one", async ({
@@ -276,23 +268,10 @@ test("adds, renames, reorders and hides sections", async ({ page, isMobile }, te
   expect(sections[0]!.isHidden).toBe(true);
   expect(sections[8]!.key).toMatch(/^ps_[a-z0-9]+$/);
 
-  // After a reload the structure is the same; hidden sections are left out of the preview.
+  // After a reload the structure is the same.
   await page.reload();
   await expect(page.locator(READY)).toBeVisible();
-  await page.getByRole("radio", { name: "Xem trước" }).click();
-  const preview = page.getByTestId("profile-preview").filter({ visible: true });
-  await expect(preview.getByRole("heading", { level: 2 })).toHaveText([
-    "Ngoại hình",
-    "Tính cách",
-    "Tâm lý",
-    "Hành vi",
-    "Xuất thân",
-    "Cuộc sống",
-    "Tiểu sử",
-    "Phép thuật",
-    "Quan hệ",
-  ]);
-  await expect(preview).toContainText("Điều khiển băng.");
+  expect((await readProfileSections(id)).map((section) => section.isHidden)[0]).toBe(true);
 });
 
 test("resolves a conflict between two tabs without losing either version", async ({

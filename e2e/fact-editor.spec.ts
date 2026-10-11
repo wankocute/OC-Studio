@@ -77,8 +77,7 @@ test("edits many field kinds and special states, and keeps them after reload", a
   await chooseOption(page, combobox(page, "Bản dạng giới"), "Khác…");
   await field(page, "Bản dạng giới").getByRole("textbox").fill("Linh hồn gió");
 
-  // Advanced-only fields and the special states.
-  await page.getByRole("radio", { name: "Nâng cao" }).click();
+  // Detailed fields (always shown) and the special states.
   await setState(page, "Quốc tịch", "Xác nhận không có");
   await setState(page, "Tuổi trông như", "Không áp dụng");
   await expect(field(page, "Quốc tịch")).toContainText(
@@ -123,32 +122,8 @@ test("edits many field kinds and special states, and keeps them after reload", a
   await expect(textbox(page, "Họ tên đầy đủ")).toHaveValue("Lâm Thanh Vân");
   await expect(nicknames.getByRole("textbox").nth(1)).toHaveValue("Mây");
   await expect(textbox(page, "Tuổi")).toHaveValue("0");
-  // Advanced mode is remembered.
-  await expect(page.getByRole("radio", { name: "Nâng cao" })).toHaveAttribute("data-state", "on");
   await expect(field(page, "Tuổi trông như")).toContainText(
     "Khái niệm này không áp dụng cho nhân vật.",
-  );
-});
-
-test("switching basic / advanced never loses data and flags hidden facts", async ({
-  page,
-  isMobile,
-}, testInfo) => {
-  const id = await insertCharacter(uniqueName("Chế độ", testInfo.project.name));
-  await openEditor(page, id);
-  await page.getByRole("radio", { name: "Nâng cao" }).click();
-  await goToGroup(page, "Định danh", isMobile);
-  await textbox(page, "Tuổi trông như").fill("Khoảng hai mươi");
-  await expectSaved(page);
-
-  await page.getByRole("radio", { name: "Cơ bản" }).click();
-  await expect(textbox(page, "Tuổi trông như")).toHaveCount(0);
-  const notice = page.getByRole("complementary").filter({ hasText: "Có dữ kiện đang ẩn" });
-  await expect(notice).toContainText("Tuổi trông như");
-  await notice.getByRole("button", { name: "Chuyển sang Nâng cao" }).click();
-  await expect(textbox(page, "Tuổi trông như")).toHaveValue("Khoảng hai mươi");
-  expect((await readCharacter(id)).facts.values["identity.apparent_age"]?.value).toBe(
-    "Khoảng hai mươi",
   );
 });
 
@@ -561,7 +536,6 @@ test("given/family name are no longer edited, but stored values stay visible and
     },
   });
   await openEditor(page, id);
-  await page.getByRole("radio", { name: "Nâng cao" }).click();
   await goToGroup(page, "Định danh", isMobile);
   // Only the full name is offered for input…
   await expect(textbox(page, "Họ tên đầy đủ")).toBeVisible();
@@ -594,7 +568,6 @@ test("the left navigation tree opens fields in built-in and custom groups", asyn
     },
   });
   await openEditor(page, id);
-  await page.getByRole("radio", { name: "Nâng cao" }).click();
 
   const nav = page.getByRole("navigation", { name: "Nhóm dữ kiện" }).filter({ visible: true });
   const jump = async (group: string, label: string, subgroup?: string) => {
@@ -647,7 +620,6 @@ test("body details save as a sensitive fact, without any AI involved", async ({
 }, testInfo) => {
   const id = await insertCharacter(uniqueName("Cơ thể", testInfo.project.name));
   await openEditor(page, id);
-  await page.getByRole("radio", { name: "Nâng cao" }).click();
   await goToGroup(page, "Ngoại hình", isMobile);
   const details = field(page, "Chi tiết đặc điểm cơ thể");
   await expect(details).toContainText("Nhạy cảm");

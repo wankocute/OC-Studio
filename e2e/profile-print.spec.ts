@@ -264,9 +264,6 @@ test("opens the print view from the profile, blocking drafts that are not saved"
   ]);
   await expect(printPage.getByTestId("print-source")).toHaveText("Bản nháp đã lưu");
   await expect(documentOf(printPage)).toContainText("Giới thiệu đã duyệt. Thêm");
-  // The preview mode offers the same control.
-  await page.getByRole("radio", { name: "Xem trước" }).click();
-  await expect(page.getByRole("button", { name: "In / Lưu PDF" })).toBeVisible();
 });
 
 test("prints straight from the character page, with the same choices", async ({

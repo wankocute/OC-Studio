@@ -164,7 +164,8 @@ export function GroupPanel({
   onField: (field: EditorField, draft: FieldDraft) => void;
   collapsed: ReadonlySet<string>;
   onToggleSection: (sectionId: string) => void;
-  onShowAdvanced: () => void;
+  /** Switch to advanced mode; without it (the editor is always advanced) no switch is offered. */
+  onShowAdvanced?: () => void;
 }) {
   const { idPrefix } = useEditorContext();
   const allFields = [...group.fields, ...group.subgroups.flatMap((section) => section.fields)];
@@ -203,7 +204,7 @@ export function GroupPanel({
       {allFields.length > 0 && !hasDirect && shownSections.length === 0 && (
         <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
           <p>{t.sections.noVisible}</p>
-          {mode === "basic" && (
+          {mode === "basic" && onShowAdvanced && (
             <Button
               type="button"
               variant="outline"
@@ -279,9 +280,11 @@ export function GroupPanel({
               </li>
             ))}
           </ul>
-          <Button type="button" variant="outline" size="sm" onClick={onShowAdvanced}>
-            {t.hidden.show}
-          </Button>
+          {onShowAdvanced && (
+            <Button type="button" variant="outline" size="sm" onClick={onShowAdvanced}>
+              {t.hidden.show}
+            </Button>
+          )}
         </aside>
       )}
     </section>

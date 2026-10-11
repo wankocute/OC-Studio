@@ -50,7 +50,6 @@ import { GeneralPanel } from "./general-panel";
 import { focusField, GroupPanel, RELATIONSHIPS_KEY, sectionDomId } from "./group-panel";
 import { ReviewPanel } from "./review-panel";
 import { useAutosave } from "./use-autosave";
-import { useEditorMode } from "./use-editor-mode";
 
 const t = messages.editor;
 
@@ -110,7 +109,9 @@ export function FactEditor(props: FactEditorProps) {
       ? characters.find((character) => character.id === props.reverseOf)?.displayName
       : undefined,
   );
-  const [mode, setMode] = useEditorMode();
+  // Every field is shown: the basic/advanced switch was removed (presentation only, facts are
+  // never affected by it).
+  const mode = "advanced" as const;
   const hydrated = useIsClient();
   const idPrefix = useId();
   const [requested, setActive] = useState(() => {
@@ -261,8 +262,6 @@ export function FactEditor(props: FactEditorProps) {
           name={working.displayName}
           state={state}
           hasErrors={hasErrors}
-          mode={mode}
-          onModeChange={setMode}
           onRetry={saveNow}
         />
 
@@ -362,7 +361,6 @@ export function FactEditor(props: FactEditorProps) {
                     return next;
                   })
                 }
-                onShowAdvanced={() => setMode("advanced")}
               />
             )}
 

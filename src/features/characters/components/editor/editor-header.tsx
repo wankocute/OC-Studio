@@ -14,10 +14,8 @@ import {
 import type { Route } from "next";
 import Link from "next/link";
 
-import { SegmentedControl } from "@/components/shared/segmented-control";
 import { StatusSwap } from "@/components/shared/status-swap";
 import { Button } from "@/components/ui/button";
-import { factLabelsVi, type PresentationMode } from "@/features/characters/domain";
 import type { EditorState } from "@/features/characters/editor/editor-state";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -71,16 +69,12 @@ export function EditorHeader({
   name,
   state,
   hasErrors,
-  mode,
-  onModeChange,
   onRetry,
 }: {
   characterId: string;
   name: string;
   state: EditorState;
   hasErrors: boolean;
-  mode: PresentationMode;
-  onModeChange: (mode: PresentationMode) => void;
   onRetry: () => void;
 }) {
   const view = statusView(state, hasErrors);
@@ -129,16 +123,6 @@ export function EditorHeader({
               {t.openProfile}
             </Link>
           </Button>
-          <SegmentedControl
-            ariaLabel={t.modeLabel}
-            value={mode}
-            onValueChange={(next) => next && onModeChange(next)}
-            options={(["basic", "advanced"] as const).map((option) => ({
-              value: option,
-              label: factLabelsVi.modes[option],
-              title: t.modeHint[option],
-            }))}
-          />
         </div>
       </div>
       {state.status === "error" && state.error && (
