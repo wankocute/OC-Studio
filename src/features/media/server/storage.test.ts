@@ -12,6 +12,7 @@ import {
   InvalidStorageKeyError,
   isValidStorageKey,
   LocalFileStorage,
+  MediaStorageUnavailableError,
 } from "./storage";
 
 let root: string;
@@ -71,6 +72,22 @@ describe("LocalFileStorage", () => {
     await storage.put(key, PNG_1X1);
     const directory = path.dirname(storage.resolve(key));
     expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("creates a missing root directory on first write (fresh volume)", async () => {
+    const fresh = new LocalFileStorage(path.join(root, "not", "yet", "created"));
+    const key = createStorageKey("png");
+    await fresh.put(key, PNG_1X1);
+    expect(await fresh.get(key)).toEqual(Buffer.from(PNG_1X1));
+  });
+
+  it("explains an unusable root directory", async () => {
+    const blocker = path.join(root, "a-file");
+    await writeFile(blocker, "x");
+    const broken = new LocalFileStorage(path.join(blocker, "storage"));
+    const error = await broken.put(createStorageKey("png"), PNG_1X1).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(MediaStorageUnavailableError);
+    expect((error as Error).message).toContain("MEDIA_STORAGE_DIR");
   });
 
   it("returns null for missing files", async () => {

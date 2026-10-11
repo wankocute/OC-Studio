@@ -32,6 +32,32 @@ export class InvalidStorageKeyError extends Error {
   }
 }
 
+/** Errors that mean "the directory itself is unusable", not "this one file failed". */
+const UNUSABLE_DIRECTORY_CODES = new Set([
+  "EACCES",
+  "EPERM",
+  "EROFS",
+  "ENOSPC",
+  "ENOTDIR",
+  "EDQUOT",
+]);
+
+/** Operator-facing: names the directory and what to check (logged by the media service). */
+export class MediaStorageUnavailableError extends Error {
+  constructor(
+    readonly root: string,
+    readonly errorCode: string,
+    options?: ErrorOptions,
+  ) {
+    super(
+      `Không ghi được vào thư mục ảnh "${root}" (${errorCode}). Kiểm tra MEDIA_STORAGE_DIR, ` +
+        "Volume đã được gắn (mount) đúng đường dẫn và còn quyền ghi / dung lượng.",
+      options,
+    );
+    this.name = "MediaStorageUnavailableError";
+  }
+}
+
 export function createStorageKey(extension: string, now = new Date()): string {
   const year = String(now.getUTCFullYear());
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
@@ -56,7 +82,12 @@ export class LocalFileStorage implements MediaStorage {
 
   async put(key: string, bytes: Uint8Array): Promise<void> {
     const target = this.resolve(key);
-    await mkdir(path.dirname(target), { recursive: true });
+    try {
+      // Creates the root too, so a fresh (empty) volume needs no manual setup.
+      await mkdir(path.dirname(target), { recursive: true });
+    } catch (error) {
+      throw this.describe(error);
+    }
     // Write to a temporary file first so a crash never leaves a half-written image under the key.
     const temporary = `${target}.${randomUUID()}.tmp`;
     try {
@@ -64,8 +95,15 @@ export class LocalFileStorage implements MediaStorage {
       await rename(temporary, target);
     } catch (error) {
       await rm(temporary, { force: true });
-      throw error;
+      throw this.describe(error);
     }
+  }
+
+  private describe(error: unknown): unknown {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    return code && UNUSABLE_DIRECTORY_CODES.has(code)
+      ? new MediaStorageUnavailableError(this.root, code, { cause: error })
+      : error;
   }
 
   async get(key: string): Promise<Buffer | null> {
