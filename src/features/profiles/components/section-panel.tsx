@@ -34,9 +34,11 @@ import { cn } from "@/lib/utils";
 
 import { HistorySheet } from "./history-sheet";
 import { RichTextEditor } from "./rich-text-editor";
+import { draftTypingKey, useTypingPending } from "./rich-text-typing";
 import { RichTextView } from "./rich-text-view";
 import { SectionStatusIcon } from "./section-nav";
 import { SectionAi, type SectionAiControl } from "./section-ai";
+import { TypewriterRichText } from "./typewriter-rich-text";
 
 const t = messages.profiles;
 const dateFormat = new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" });
@@ -217,6 +219,8 @@ export function SectionPanel({
   const status = statusOfSection(draft);
   const editorId = `${idPrefix}-editor-${section.id}`;
   const errorId = `${idPrefix}-errors-${section.id}`;
+  const typingKey = draftTypingKey(section.id, draft.draftRevision);
+  const typing = useTypingPending(typingKey);
   const groupLabels = new Map(sourceGroups.map((group) => [group.id, group.label]));
   const sources = section.sourceGroups
     .map((id) => groupLabels.get(id))
@@ -279,17 +283,31 @@ export function SectionPanel({
 
       {version === "draft" ? (
         <FadeIn key="draft" className="space-y-2">
-          <RichTextEditor
-            // A new editor when the content is replaced from outside (restore, latest version).
-            key={`${section.id}:${draft.resetCount}`}
-            id={editorId}
-            label={t.editorLabel(label)}
-            placeholder={t.placeholder(label)}
-            initialContent={draft.content}
-            invalid={draft.invalid.length > 0}
-            describedBy={draft.invalid.length > 0 ? errorId : undefined}
-            onChange={(content) => dispatch({ type: "edit", sectionId: section.id, content })}
-          />
+          {typing && draft.content ? (
+            // AI text just written into the draft (already saved) is typed out first; the editor
+            // takes over when it is done or skipped, so no half-typed text is ever edited or saved.
+            <div
+              className="rounded-xl border bg-card px-4 py-3 shadow-xs"
+              aria-busy
+              data-testid="ai-typing"
+            >
+              <div className="min-h-72 md:min-h-96">
+                <TypewriterRichText jobId={typingKey} content={draft.content} />
+              </div>
+            </div>
+          ) : (
+            <RichTextEditor
+              // A new editor when the content is replaced from outside (restore, latest version).
+              key={`${section.id}:${draft.resetCount}`}
+              id={editorId}
+              label={t.editorLabel(label)}
+              placeholder={t.placeholder(label)}
+              initialContent={draft.content}
+              invalid={draft.invalid.length > 0}
+              describedBy={draft.invalid.length > 0 ? errorId : undefined}
+              onChange={(content) => dispatch({ type: "edit", sectionId: section.id, content })}
+            />
+          )}
           {draft.invalid.length > 0 && (
             <ul id={errorId} className="space-y-1 text-sm text-destructive">
               {draft.invalid.map((message) => (

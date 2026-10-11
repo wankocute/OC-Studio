@@ -8,7 +8,7 @@ import {
 } from "./database";
 
 test.afterAll(closeDatabase);
-test("AI previews scoped facts, preserves draft until apply, and keeps the approved version/history", async ({
+test("AI previews scoped facts, writes its text into the draft, and keeps the approved version/history", async ({
   page,
 }, testInfo) => {
   const name = `AI ${testInfo.project.name} ${Date.now()}`;
@@ -34,11 +34,11 @@ test("AI previews scoped facts, preserves draft until apply, and keeps the appro
   await expect(dialog.getByTestId("ai-facts-preview")).not.toContainText("identity.biological_sex");
   await expect(dialog.getByTestId("ai-facts-preview")).not.toContainText("E2E_PRIVATE");
   await dialog.getByRole("button", { name: "Tạo nội dung", exact: true }).click();
-  await expect(dialog.getByRole("heading", { name: "Nội dung đề xuất" })).toBeVisible();
-  expect(JSON.stringify((await readProfileSections(id))[0]?.draft)).toContain("Bản nháp thủ công");
-  await dialog.getByRole("button", { name: "Dùng làm bản nháp", exact: true }).click();
-  await expect(dialog).not.toBeVisible();
-  await expect(editor).toContainText("đề xuất AI");
+  // Once the job finishes its text goes straight into the draft (no "use as draft" step): it is
+  // typed out, then the editor takes over with the saved text.
+  await expect(dialog).not.toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/ghi vào bản nháp/)).toBeVisible();
+  await expect(editor).toContainText("đề xuất AI", { timeout: 10_000 });
   const section = (await readProfileSections(id)).find((section) => section.key === "intro")!;
   expect(await readRevisionKinds(section.id)).toContain("restore");
   expect((await readCharacter(id)).facts).toEqual(before.facts);

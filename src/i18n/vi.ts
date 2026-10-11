@@ -959,6 +959,7 @@ export const vi = {
       dismiss: "Đóng thông báo",
       finished: (title: string) =>
         `AI đã viết xong mục “${title}”. Hãy xem đề xuất trước khi dùng.`,
+      written: (title: string) => `AI đã viết xong mục “${title}” và ghi vào bản nháp.`,
       failed: (title: string) => `AI không viết được mục “${title}”.`,
       view: "Xem",
       navRunning: "AI đang viết",

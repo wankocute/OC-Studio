@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useId, useReducer, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 
 import { FadeIn } from "@/components/shared/fade-in";
@@ -9,6 +18,7 @@ import {
   reorderSectionsAction,
   updateSectionAction,
 } from "@/features/profiles/actions";
+import { applySectionAiAction } from "@/features/profiles/ai/actions";
 import type { AiJobView } from "@/features/profiles/ai/service";
 import type { SourceGroupOption } from "@/features/profiles/fact-sources";
 import { summarizePrint } from "@/features/profiles/print";
@@ -32,6 +42,7 @@ import type { ActionResult } from "@/lib/action-result";
 
 import { ProfileHeader } from "./profile-header";
 import { PrintDialog } from "./print-dialog";
+import { draftTypingKey, markForTyping } from "./rich-text-typing";
 import { AddSectionDialog, RenameSectionDialog, SourcesDialog } from "./section-dialogs";
 import { SectionNav } from "./section-nav";
 import { SectionPanel } from "./section-panel";
@@ -78,17 +89,72 @@ export function ProfileWorkspace({
     dispatch({ type: "select", sectionId });
     setAiOpenFor(sectionId);
   }, []);
+  // Read by the AI callbacks below, which run outside render (polling, a resolved action).
+  const stateRef = useRef(state);
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  });
+  const forgetAiJob = useRef<(sectionId: string) => void>(() => {});
+  const applyingAi = useRef(new Set<string>());
+
+  /**
+   * Write a finished suggestion straight into the section's draft (the server keeps the previous
+   * draft in the history). Only when it is safe: the draft is saved and unchanged since the job
+   * started, and the source facts did not change. Otherwise the suggestion stays in the AI dialog
+   * for the user to review. Returns whether it was written.
+   */
+  const autoApplyAi = useCallback(async (job: AiJobView): Promise<boolean> => {
+    const result = job.status === "succeeded" ? job.result : undefined;
+    if (!result || result.stale || applyingAi.current.has(job.id)) return false;
+    const draft = stateRef.current.drafts[job.sectionId];
+    const saved = draft?.status === "idle" || draft?.status === "saved";
+    if (!saved || draft.draftRevision !== result.draftRevision) return false;
+    applyingAi.current.add(job.id);
+    try {
+      const applied = await applySectionAiAction({ token: result.token, confirmStale: false });
+      if (!applied.ok) return false;
+      const { content, draftRevision, savedAt } = applied.data;
+      markForTyping(draftTypingKey(job.sectionId, draftRevision));
+      dispatch({ type: "replaced", sectionId: job.sectionId, content, draftRevision, savedAt });
+      forgetAiJob.current(job.sectionId);
+      setAiOpenFor((current) => (current === job.sectionId ? null : current));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const onAiFinished = useCallback(
     (job: AiJobView) => {
       const action = { label: messages.profileAi.job.view, onClick: () => openAi(job.sectionId) };
-      if (job.status === "succeeded")
-        toast.success(messages.profileAi.job.finished(job.title), { action });
-      else if (job.status === "failed")
+      if (job.status === "succeeded") {
+        void autoApplyAi(job).then((written) =>
+          written
+            ? toast.success(messages.profileAi.job.written(job.title))
+            : toast.success(messages.profileAi.job.finished(job.title), { action }),
+        );
+      } else if (job.status === "failed")
         toast.error(messages.profileAi.job.failed(job.title), { action });
     },
-    [openAi],
+    [openAi, autoApplyAi],
   );
   const aiJobs = useAiJobs(initialAiJobs, onAiFinished);
+  useLayoutEffect(() => {
+    forgetAiJob.current = aiJobs.forget;
+  }, [aiJobs.forget]);
+  // Suggestions that finished while the page was closed are written the same way on return.
+  const [finishedBeforeLoad] = useState(() =>
+    initialAiJobs.filter((job) => job.status === "succeeded"),
+  );
+  useEffect(() => {
+    // Asynchronous by nature (a Server Action); state only changes once it has answered.
+    const run = async () => {
+      for (const job of finishedBeforeLoad) {
+        if (await autoApplyAi(job)) toast.success(messages.profileAi.job.written(job.title));
+      }
+    };
+    void run();
+  }, [finishedBeforeLoad, autoApplyAi]);
   const aiBadges: Record<string, "running" | "ready"> = {};
   for (const job of Object.values(aiJobs.jobs)) {
     if (isActiveJob(job)) aiBadges[job.sectionId] = "running";

@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from "react";
+
 import type {
   RichTextBlock,
   RichTextDocument,
@@ -74,18 +76,40 @@ export function sliceDocument(document: RichTextDocument, count: number): RichTe
 }
 
 /*
- * Results that finished while the page was open and have not been shown yet. Only those are
- * typed out: reopening the dialog, switching tabs or loading the page with an older suggestion
- * shows it at once. Client memory only — it is a presentation hint, never data.
+ * AI text that was just produced and has not been shown yet (keyed by job, or by the section
+ * draft it was written into). Only those are typed out: reopening, switching tabs or reloading
+ * shows text at once. Client memory only — it is a presentation hint, never data.
  */
 const pending = new Set<string>();
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((listener) => listener());
 
-export function markForTyping(jobId: string) {
-  pending.add(jobId);
+export function markForTyping(key: string) {
+  pending.add(key);
+  notify();
 }
-export function shouldType(jobId: string) {
-  return pending.has(jobId);
+export function shouldType(key: string) {
+  return pending.has(key);
 }
-export function markTyped(jobId: string) {
-  pending.delete(jobId);
+export function markTyped(key: string) {
+  if (pending.delete(key)) notify();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
+/** Typing key of AI text written into a section's draft (that draft revision only). */
+export function draftTypingKey(sectionId: string, draftRevision: number) {
+  return `draft:${sectionId}:${draftRevision}`;
+}
+
+/** Whether `key` still waits for its typing animation (re-renders when that changes). */
+export function useTypingPending(key: string) {
+  return useSyncExternalStore(
+    subscribe,
+    () => pending.has(key),
+    () => false,
+  );
 }

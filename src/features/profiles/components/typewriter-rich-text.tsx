@@ -14,6 +14,9 @@ const MIN_MS = 500;
 const MAX_MS = 2_400;
 const MS_PER_CHAR = 14;
 
+/** Pending "left mid-way" marks, cancelled when the same text mounts again right away. */
+const leaving = new Map<string, number>();
+
 const reducedMotion = () =>
   typeof window.matchMedia === "function" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -28,6 +31,7 @@ export function TypewriterRichText({
   jobId,
   content,
 }: {
+  /** Typing key (`markForTyping`): a job id, or a section draft the text was written into. */
   jobId: string;
   content: RichTextDocument;
 }) {
@@ -37,7 +41,10 @@ export function TypewriterRichText({
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!typing) return;
+    // An unmount that is immediately followed by a mount (Strict Mode) is not "leaving".
+    window.clearTimeout(leaving.get(jobId));
+    // Shown at once (reduced motion, already seen, or skipped): never typed later.
+    if (!typing) return markTyped(jobId);
     const duration = Math.min(MAX_MS, Math.max(MIN_MS, total * MS_PER_CHAR));
     const started = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
@@ -49,7 +56,10 @@ export function TypewriterRichText({
     return () => {
       cancelAnimationFrame(frame);
       // Leaving mid-way (dialog closed, tab switched) counts as shown: no replay later.
-      markTyped(jobId);
+      leaving.set(
+        jobId,
+        window.setTimeout(() => markTyped(jobId)),
+      );
     };
   }, [typing, total, jobId]);
 
