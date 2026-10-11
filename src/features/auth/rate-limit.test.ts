@@ -1,65 +1,70 @@
 import { describe, expect, it } from "vitest";
 
-import { clientKeyFromHeaders, LoginRateLimiter } from "./rate-limit";
+import { createMemoryLoginFailureStore } from "@/test/memory-login-failure-store";
 
-function setup(overrides: Partial<ConstructorParameters<typeof LoginRateLimiter>[0]> = {}) {
+import { clientKeyFromHeaders, LoginRateLimiter, TOTAL_KEY } from "./rate-limit";
+
+function setup(overrides: Partial<ConstructorParameters<typeof LoginRateLimiter>[1]> = {}) {
   let now = 1_000_000;
+  const store = createMemoryLoginFailureStore();
   const limiter = new LoginRateLimiter(
-    { windowMs: 60_000, maxPerClient: 3, maxTotal: 10, maxTrackedClients: 100, ...overrides },
+    store,
+    { windowMs: 60_000, maxPerClient: 3, maxTotal: 10, ...overrides },
     () => now,
   );
-  return { limiter, advance: (ms: number) => (now += ms) };
+  return { limiter, store, advance: (ms: number) => (now += ms) };
 }
 
 describe("LoginRateLimiter", () => {
-  it("blocks a client after too many failures until the window ends", () => {
+  it("blocks a client after too many failures until the window ends", async () => {
     const { limiter, advance } = setup();
     for (let i = 0; i < 3; i++) {
-      expect(limiter.check("a").allowed).toBe(true);
-      limiter.recordFailure("a");
+      expect((await limiter.check("ip:a")).allowed).toBe(true);
+      await limiter.recordFailure("ip:a");
     }
-    expect(limiter.check("a")).toEqual({ allowed: false, retryAfterMs: 60_000 });
-    expect(limiter.check("b").allowed).toBe(true);
+    expect(await limiter.check("ip:a")).toEqual({ allowed: false, retryAfterMs: 60_000 });
+    expect((await limiter.check("ip:b")).allowed).toBe(true);
 
     advance(59_999);
-    expect(limiter.check("a").allowed).toBe(false);
+    expect((await limiter.check("ip:a")).allowed).toBe(false);
     advance(1);
-    expect(limiter.check("a").allowed).toBe(true);
+    expect((await limiter.check("ip:a")).allowed).toBe(true);
   });
 
-  it("caps total failures across clients (rotating IPs)", () => {
+  it("caps total failures across clients (rotating IPs)", async () => {
     const { limiter } = setup({ maxPerClient: 100, maxTotal: 4 });
-    for (const client of ["a", "b", "c", "d"]) limiter.recordFailure(client);
-    expect(limiter.check("fresh-client").allowed).toBe(false);
+    for (const client of ["ip:a", "ip:b", "ip:c", "ip:d"]) await limiter.recordFailure(client);
+    expect((await limiter.check("ip:fresh-client")).allowed).toBe(false);
   });
 
-  it("forgets a client's failures after a successful login", () => {
+  it("forgets a client's failures after a successful login", async () => {
     const { limiter } = setup();
-    limiter.recordFailure("a");
-    limiter.recordFailure("a");
-    limiter.reset("a");
-    limiter.recordFailure("a");
-    limiter.recordFailure("a");
-    expect(limiter.check("a").allowed).toBe(true);
+    await limiter.recordFailure("ip:a");
+    await limiter.recordFailure("ip:a");
+    await limiter.reset("ip:a");
+    await limiter.recordFailure("ip:a");
+    await limiter.recordFailure("ip:a");
+    expect((await limiter.check("ip:a")).allowed).toBe(true);
   });
 
-  it("keeps memory bounded", () => {
-    const { limiter } = setup({ maxTrackedClients: 2, maxTotal: 1_000 });
-    for (const client of ["a", "b", "c"]) limiter.recordFailure(client);
-    // "a" was evicted to make room; its single failure no longer counts.
-    for (let i = 0; i < 2; i++) limiter.recordFailure("a");
-    expect(limiter.check("a").allowed).toBe(true);
+  it("prunes counters whose window has ended (bounded storage)", async () => {
+    const { limiter, store, advance } = setup();
+    await limiter.recordFailure("ip:a");
+    advance(60_000);
+    await limiter.recordFailure("ip:b");
+    expect([...store.buckets.keys()].sort()).toEqual([TOTAL_KEY, "ip:b"].sort());
   });
 });
 
 describe("clientKeyFromHeaders", () => {
   it("uses the address appended by the nearest proxy, not the client-supplied one", () => {
     const headers = new Headers({ "x-forwarded-for": "1.1.1.1, 203.0.113.9" });
-    expect(clientKeyFromHeaders(headers)).toBe("203.0.113.9");
+    expect(clientKeyFromHeaders(headers)).toBe("ip:203.0.113.9");
   });
 
-  it("falls back to x-real-ip, then a shared key", () => {
-    expect(clientKeyFromHeaders(new Headers({ "x-real-ip": "10.0.0.1" }))).toBe("10.0.0.1");
-    expect(clientKeyFromHeaders(new Headers())).toBe("unknown");
+  it("falls back to x-real-ip, then a shared key, and never collides with the total", () => {
+    expect(clientKeyFromHeaders(new Headers({ "x-real-ip": "10.0.0.1" }))).toBe("ip:10.0.0.1");
+    expect(clientKeyFromHeaders(new Headers())).toBe("ip:unknown");
+    expect(clientKeyFromHeaders(new Headers({ "x-forwarded-for": TOTAL_KEY }))).not.toBe(TOTAL_KEY);
   });
 });

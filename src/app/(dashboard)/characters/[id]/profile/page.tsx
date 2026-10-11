@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getDb } from "@/db";
 import { isRepositoryError } from "@/db/repository-errors";
 import { fingerprint } from "@/features/characters/domain";
-import { sectionAi } from "@/features/profiles/ai/service";
+import { getSectionAi } from "@/features/profiles/ai/section-ai";
 import { ProfileWorkspace } from "@/features/profiles/components/profile-workspace";
 import { StartProfileButton } from "@/features/profiles/components/start-profile";
 import { loadFactSources } from "@/features/profiles/server/fact-source-loader";
@@ -21,6 +21,10 @@ import { messages } from "@/i18n";
 const t = messages.profiles;
 
 export const metadata: Metadata = { title: t.pageTitle };
+
+// Server Actions posted from this page (AI generation runs in their `after()`) get the most a
+// Vercel Hobby function may run. AI_REQUEST_TIMEOUT_MS (≤ 280 s) stays below it.
+export const maxDuration = 300;
 
 async function load(characterId: string) {
   const db = getDb();
@@ -85,8 +89,8 @@ async function ProfileLoader({
       profile={view}
       sourceGroups={sources.groups}
       initialSection={section}
-      // In-memory jobs of this server process: lets the page show work still running or done.
-      initialAiJobs={sectionAi.jobsForSections(profile.sections.map((item) => item.id))}
+      // Stored jobs: lets the page show work still running or done (from any device).
+      initialAiJobs={await getSectionAi().jobsForSections(profile.sections.map((item) => item.id))}
     />
   );
 }

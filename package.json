@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "node scripts/migrate.mjs && next build",
     "start": "next start",
-    "start:prod": "node scripts/check-storage.mjs && node scripts/migrate.mjs && next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "typecheck": "next typegen && tsc --noEmit",
@@ -18,15 +18,18 @@
     "db:check": "tsx --conditions=react-server scripts/db-check.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:prod": "node scripts/migrate.mjs",
+    "db:migrate:deploy": "node scripts/migrate.mjs",
     "db:studio": "drizzle-kit studio",
-    "test:integration": "vitest run --config vitest.integration.config.mts"
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "media:to-blob": "tsx scripts/migrate-media-to-blob.ts"
   },
   "dependencies": {
     "@tiptap/extensions": "^3.31.4",
     "@tiptap/pm": "^3.31.4",
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
+    "@vercel/blob": "^2.8.1",
+    "@vercel/functions": "^3.9.11",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.4.0",

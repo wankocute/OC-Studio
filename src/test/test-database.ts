@@ -18,6 +18,9 @@ export const MIGRATIONS_FOLDER = path.join(process.cwd(), "src", "db", "migratio
 
 /** Project tables, children first. Used only to wipe the test database between tests. */
 export const PROJECT_TABLES = [
+  "ai_section_jobs",
+  "ai_section_tokens",
+  "login_failures",
   "content_revisions",
   "profile_sections",
   "profiles",

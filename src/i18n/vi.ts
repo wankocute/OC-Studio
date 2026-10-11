@@ -984,7 +984,7 @@ export const vi = {
       network:
         "Kết nối tới AI gặp lỗi fetch. Xem loại lỗi và causeCode trong log server; bạn có thể thử lại thủ công, bản nháp vẫn được giữ.",
       timeout:
-        "AI chưa hoàn tất trước giới hạn chờ (mặc định 300 giây, đặt bằng AI_REQUEST_TIMEOUT_MS); server đã hủy request phía mình — việc này không bảo đảm Google đã ngừng xử lý. Bạn có thể thử lại thủ công; bản nháp vẫn được giữ.",
+        "AI chưa hoàn tất trước giới hạn chờ (mặc định 240 giây, đặt bằng AI_REQUEST_TIMEOUT_MS, tối đa 280 giây); server đã hủy request phía mình — việc này không bảo đảm Google đã ngừng xử lý. Bạn có thể thử lại thủ công; bản nháp vẫn được giữ.",
       dns: "Server không phân giải được địa chỉ Google (DNS). Kiểm tra mạng và DNS; bản nháp vẫn được giữ.",
       tls: "Server gặp lỗi TLS hoặc chứng chỉ khi kết nối Google. Kiểm tra chứng chỉ, proxy và mạng; bản nháp vẫn được giữ.",
       rateLimit:
@@ -996,7 +996,7 @@ export const vi = {
       blocked:
         "Google đã chặn yêu cầu hoặc nội dung trả về theo chính sách của họ (xem lý do bên dưới). Điều này chỉ ảnh hưởng việc tạo bằng AI: dữ kiện và bản nháp không bị thay đổi, bạn vẫn tự viết, lưu, duyệt và in bình thường.",
       cancelled: "Bạn đã hủy lần tạo này. Server ngừng chờ kết quả; bản nháp không đổi.",
-      lost: "Không còn tìm thấy tác vụ AI này — có thể server đã khởi động lại hoặc kết quả đã hết hạn. Hãy tạo lại.",
+      lost: "Tác vụ AI này không hoàn tất — server đã dừng giữa chừng (hết thời gian, triển khai lại) hoặc kết quả đã hết hạn. Bản nháp vẫn được giữ; hãy tạo lại.",
       unexpected:
         "Lỗi không mong muốn phía server khi tạo bằng AI. Hãy thử lại; bản nháp vẫn được giữ.",
       expired: "Đề xuất hoặc bản xem trước đã hết hạn. Hãy mở lại AI.",

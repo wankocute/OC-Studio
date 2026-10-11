@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loginAction } from "./actions";
 import { SESSION_COOKIE } from "./constants";
-import { getLoginRateLimiter } from "./rate-limit";
+import { createMemoryLoginFailureStore } from "@/test/memory-login-failure-store";
+
+import { LoginRateLimiter } from "./rate-limit";
 import { deriveSigningKey, verifySessionToken } from "./session-token";
 
 const PASSWORD = "mật khẩu đúng";
@@ -32,6 +34,10 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+let store = createMemoryLoginFailureStore();
+vi.mock("@/db", () => ({ getDb: () => ({}) }));
+vi.mock("./server/login-failure-store", () => ({ createLoginFailureStore: () => store }));
+
 function form(password: string, next?: string) {
   const data = new FormData();
   data.set("password", password);
@@ -42,13 +48,15 @@ function form(password: string, next?: string) {
 beforeEach(() => {
   setCookies.length = 0;
   clientIp = `203.0.113.${Math.floor(Math.random() * 250)}`;
-  // A fresh limiter per test.
-  (globalThis as { __ocStudioLoginLimiter?: unknown }).__ocStudioLoginLimiter = undefined;
+  store = createMemoryLoginFailureStore();
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("APP_PASSWORD", PASSWORD);
   vi.stubEnv("AUTH_SECRET", SECRET);
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 
 describe("loginAction", () => {
   it("sets a signed, httpOnly, secure, lax cookie and redirects to the safe target", async () => {
@@ -84,7 +92,17 @@ describe("loginAction", () => {
     const result = await loginAction(null, form(PASSWORD));
     expect(result).toMatchObject({ ok: false, error: { code: "rate_limited" } });
     expect(setCookies).toHaveLength(0);
-    expect(getLoginRateLimiter().check("someone-else").allowed).toBe(true);
+    expect((await new LoginRateLimiter(store).check("ip:someone-else")).allowed).toBe(true);
+  });
+
+  it("fails closed when the failure counters cannot be read", async () => {
+    store.read = async () => {
+      throw new Error("database down");
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await loginAction(null, form(PASSWORD));
+    expect(result).toMatchObject({ ok: false });
+    expect(setCookies).toHaveLength(0);
   });
 
   it("refuses to log in when the server is misconfigured", async () => {

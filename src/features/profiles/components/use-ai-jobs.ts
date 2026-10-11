@@ -6,7 +6,7 @@ import { getSectionAiJobsAction } from "@/features/profiles/ai/actions";
 import type { AiJobView } from "@/features/profiles/ai/service";
 import { messages } from "@/i18n";
 
-/** How often active jobs are checked. Each check only reads server memory. */
+/** How often active jobs are checked. Each check only reads the database. */
 export const AI_POLL_INTERVAL_MS = 3_000;
 /** After the server's deadline, a job still reported as running is treated as lost. */
 const DEADLINE_GRACE_MS = 60_000;

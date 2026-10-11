@@ -5,6 +5,7 @@ import {
   isSensitive,
   parseCharacterFacts,
 } from "@/features/characters/domain";
+import { createMemoryAiStore } from "@/test/memory-ai-store";
 import { createAiService, type AiContext } from "./service";
 import { selectSectionFacts, aiSnapshotStale } from "./facts";
 import { AiError, createOpenAiWriter, parseAiOutput, type SectionWriter } from "./provider";
@@ -32,15 +33,15 @@ describe("section AI", () => {
   it("enforces expiry and timeout without retrying", async () => {
     vi.useFakeTimers();
     try {
-      const service = createAiService();
+      const service = createAiService(createMemoryAiStore());
       const input = context();
-      const expired = service.preview(input, []);
+      const expired = await service.preview(input, []);
       vi.advanceTimersByTime(AI_LIMITS.ttlMs + 1);
       const generate = vi.fn<SectionWriter["generate"]>(() => new Promise<unknown>(() => {}));
       await expect(
         service.generate(expired.token, "", { generate }, async () => input),
       ).rejects.toThrow("expired");
-      const preview = service.preview(input, []);
+      const preview = await service.preview(input, []);
       const pending = service.generate(preview.token, "", { generate }, async () => input);
       const rejected = expect(pending).rejects.toThrow("timeout");
       await vi.advanceTimersByTimeAsync(AI_LIMITS.timeoutMs + 1);
@@ -53,9 +54,9 @@ describe("section AI", () => {
     }
   });
   it("does not silently overwrite a changed draft and retains the candidate on write conflict", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
-    const preview = service.preview(input, []);
+    const preview = await service.preview(input, []);
     const candidate = await service.generate(
       preview.token,
       "",
@@ -75,10 +76,10 @@ describe("section AI", () => {
     );
   });
   it("previews exactly the provider facts and never writes until explicitly applied", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     const before = structuredClone(input);
-    const preview = service.preview(input, []);
+    const preview = await service.preview(input, []);
     expect(preview.json).not.toContain("SECRET");
     expect(preview.json).not.toContain("background.family");
     expect(preview.permissions).toContain("background.family");
@@ -101,15 +102,15 @@ describe("section AI", () => {
     );
   });
   it("sensitive absence/inapplicability permissions only affect this request", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     for (const state of ["explicit_none", "not_applicable"] as const) {
       input.facts.values["background.family"] = { state };
-      const permitted = service.preview(input, ["background.family"]);
+      const permitted = await service.preview(input, ["background.family"]);
       expect(permitted.json).toContain(state);
-      expect(service.preview(input, []).json).not.toContain("background.family");
+      expect((await service.preview(input, [])).json).not.toContain("background.family");
     }
-    const preview = service.preview(input, ["background.family"]);
+    const preview = await service.preview(input, ["background.family"]);
     const writer = {
       generate: vi.fn(async () => {
         throw new AiError("rateLimit");
@@ -124,9 +125,9 @@ describe("section AI", () => {
     expect(writer.generate).toHaveBeenCalledTimes(1);
   });
   it("rejects changed preview before calling provider", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
-    const preview = service.preview(input, []);
+    const preview = await service.preview(input, []);
     const latest = structuredClone(input);
     latest.facts.displayName = "B";
     const generate = vi.fn();
@@ -136,9 +137,9 @@ describe("section AI", () => {
     expect(generate).not.toHaveBeenCalled();
   });
   it("warns about facts changing during generation and requires acknowledgement on apply", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
-    const preview = service.preview(input, []);
+    const preview = await service.preview(input, []);
     let latest = input;
     const writer = {
       generate: async () => {
@@ -158,10 +159,10 @@ describe("section AI", () => {
     expect(write).toHaveBeenCalledTimes(1);
   });
   it("rejects empty scoped facts and malformed/blank/oversized output", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     input.groups = ["psychology"];
-    const preview = service.preview(input, []);
+    const preview = await service.preview(input, []);
     expect(preview.empty).toBe(true);
     const generate = vi.fn();
     await expect(
@@ -236,44 +237,44 @@ describe("section AI background jobs", () => {
   const ok = { paragraphs: ["An sinh tại Huế."] };
 
   it("returns a job at once and finishes it in the background", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     let release!: (value: unknown) => void;
     const generate = vi.fn<SectionWriter["generate"]>(
       () => new Promise((resolve) => (release = resolve)),
     );
     const job = await service.start(
-      service.preview(input, []).token,
+      (await service.preview(input, [])).token,
       "",
       { generate },
       async () => input,
     );
     expect(job.status).toMatch(/queued|running/);
-    expect(service.job(job.id)?.status).toBe("running");
-    expect(service.jobsForSections(["section"]).map((view) => view.id)).toEqual([job.id]);
+    expect((await service.job(job.id))?.status).toBe("running");
+    expect((await service.jobsForSections(["section"])).map((view) => view.id)).toEqual([job.id]);
 
     release(ok);
     const done = await service.wait(job.id);
     expect(done?.status).toBe("succeeded");
     expect(done?.result?.content.content[0]).toMatchObject({ type: "paragraph" });
     // Polling reads memory only.
-    service.job(job.id);
-    service.job(job.id);
+    await service.job(job.id);
+    await service.job(job.id);
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it("never runs two generations for one section", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
     const first = await service.start(
-      service.preview(input, []).token,
+      (await service.preview(input, [])).token,
       "",
       { generate },
       async () => input,
     );
     const second = await service.start(
-      service.preview(input, []).token,
+      (await service.preview(input, [])).token,
       "",
       { generate },
       async () => input,
@@ -285,11 +286,11 @@ describe("section AI background jobs", () => {
   it("uses the configured deadline and aborts the request", async () => {
     vi.useFakeTimers();
     try {
-      const service = createAiService();
+      const service = createAiService(createMemoryAiStore());
       const input = context();
       const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
       const job = await service.start(
-        service.preview(input, []).token,
+        (await service.preview(input, [])).token,
         "",
         { generate },
         async () => input,
@@ -297,7 +298,10 @@ describe("section AI background jobs", () => {
       );
       expect(Date.parse(job.deadlineAt) - Date.parse(job.startedAt)).toBe(30_000);
       await vi.advanceTimersByTimeAsync(30_001);
-      expect(service.job(job.id)).toMatchObject({ status: "failed", error: { code: "timeout" } });
+      expect(await service.job(job.id)).toMatchObject({
+        status: "failed",
+        error: { code: "timeout" },
+      });
       expect(generate.mock.calls[0]![2].aborted).toBe(true);
     } finally {
       vi.useRealTimers();
@@ -305,23 +309,23 @@ describe("section AI background jobs", () => {
   });
 
   it("cancels: aborts the request and ignores a late answer", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     let release!: (value: unknown) => void;
     const generate = vi.fn<SectionWriter["generate"]>(
       () => new Promise((resolve) => (release = resolve)),
     );
     const job = await service.start(
-      service.preview(input, []).token,
+      (await service.preview(input, [])).token,
       "",
       { generate },
       async () => input,
     );
-    expect(service.cancel(job.id)?.status).toBe("cancelled");
+    expect((await service.cancel(job.id))?.status).toBe("cancelled");
     expect(generate.mock.calls[0]![2].aborted).toBe(true);
     release(ok);
     await service.wait(job.id);
-    const view = service.job(job.id);
+    const view = await service.job(job.id);
     expect(view?.status).toBe("cancelled");
     expect(view?.result).toBeUndefined();
   });
@@ -329,29 +333,29 @@ describe("section AI background jobs", () => {
   it("keeps a suggestion for 15 minutes from when it was produced, then forgets the job", async () => {
     vi.useFakeTimers();
     try {
-      const service = createAiService();
+      const service = createAiService(createMemoryAiStore());
       const input = context();
       let release!: (value: unknown) => void;
       const generate = vi.fn<SectionWriter["generate"]>(
         () => new Promise((resolve) => (release = resolve)),
       );
       const job = await service.start(
-        service.preview(input, []).token,
+        (await service.preview(input, [])).token,
         "",
         { generate },
         async () => input,
       );
       // A slow provider: the 15 minutes start only when the result exists.
-      await vi.advanceTimersByTimeAsync(4 * 60_000);
+      await vi.advanceTimersByTimeAsync(3 * 60_000);
       release(ok);
       const done = await service.wait(job.id);
       expect(Date.parse(done!.result!.expiresAt) - Date.parse(done!.finishedAt!)).toBe(
         AI_LIMITS.ttlMs,
       );
       await vi.advanceTimersByTimeAsync(AI_LIMITS.ttlMs - 1_000);
-      expect(service.job(job.id)?.status).toBe("succeeded");
+      expect((await service.job(job.id))?.status).toBe("succeeded");
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(service.job(job.id)).toBeNull();
+      expect(await service.job(job.id)).toBeNull();
       await expect(
         service.apply(done!.result!.token, false, async () => input, vi.fn()),
       ).rejects.toThrow("expired");
@@ -361,24 +365,26 @@ describe("section AI background jobs", () => {
   });
 
   it("reports provider failures on the job, with the specific code", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     for (const code of ["blocked", "rateLimit", "dns", "outputEmpty"] as const) {
       const job = await service.start(
-        service.preview(input, []).token,
+        (await service.preview(input, [])).token,
         "",
         { generate: async () => Promise.reject(new AiError(code)) },
         async () => input,
       );
       const done = await service.wait(job.id);
       expect(done).toMatchObject({ status: "failed", error: { code } });
-      service.dismiss(job.id);
-      expect(service.job(job.id)).toBeNull();
+      await service.dismiss(job.id);
+      expect(await service.job(job.id)).toBeNull();
     }
   });
 
-  it("does not know jobs of another server process", () => {
-    expect(createAiService().job("00000000-0000-4000-8000-000000000000")).toBeNull();
+  it("does not know jobs that were never stored", async () => {
+    expect(
+      await createAiService(createMemoryAiStore()).job("00000000-0000-4000-8000-000000000000"),
+    ).toBeNull();
   });
 });
 
@@ -412,12 +418,12 @@ describe("body details field (TASK 10)", () => {
 
 describe("model fixed per job", () => {
   it("keeps the model a job was created with, whatever is chosen afterwards", async () => {
-    const service = createAiService();
+    const service = createAiService(createMemoryAiStore());
     const input = context();
     const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
     const lite = { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" };
     const job = await service.start(
-      service.preview(input, []).token,
+      (await service.preview(input, [])).token,
       "",
       { generate },
       async () => input,
@@ -428,14 +434,136 @@ describe("model fixed per job", () => {
     expect(job.model).toEqual(lite);
     // Starting again with another model returns the running job, still on its own model.
     const again = await service.start(
-      service.preview(input, []).token,
+      (await service.preview(input, [])).token,
       "",
       { generate },
       async () => input,
       { model: { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" } },
     );
     expect(again.id).toBe(job.id);
-    expect(service.job(job.id)?.model).toEqual(lite);
+    expect((await service.job(job.id))?.model).toEqual(lite);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("jobs shared through the store (serverless instances)", () => {
+  const ok = { paragraphs: ["An sinh tại Huế."] };
+
+  it("lets another instance poll, apply and dismiss what one instance produced", async () => {
+    const store = createMemoryAiStore();
+    const starter = createAiService(store);
+    const poller = createAiService(store);
+    const input = context();
+    const job = await starter.start(
+      (await starter.preview(input, [])).token,
+      "",
+      { generate: async () => ok },
+      async () => input,
+    );
+    await starter.wait(job.id);
+    const seen = await poller.job(job.id);
+    expect(seen).toMatchObject({ status: "succeeded" });
+    expect((await poller.jobsForSections(["section"])).map((view) => view.id)).toEqual([job.id]);
+    const write = vi.fn(async () => ({ draftRevision: 3, savedAt: "now" }));
+    await poller.apply(seen!.result!.token, false, async () => input, write);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(await starter.job(job.id)).toBeNull();
+  });
+
+  it("runs the job through the given scheduler (Next's after() in production)", async () => {
+    const service = createAiService(createMemoryAiStore());
+    const input = context();
+    const scheduled: (() => Promise<void>)[] = [];
+    const generate = vi.fn(async () => ok);
+    const job = await service.start(
+      (await service.preview(input, [])).token,
+      "",
+      { generate },
+      async () => input,
+      { schedule: (task) => scheduled.push(task) },
+    );
+    expect(job.status).toBe("queued");
+    expect(generate).not.toHaveBeenCalled();
+    await scheduled[0]!();
+    expect(await service.job(job.id)).toMatchObject({ status: "succeeded" });
+  });
+
+  it("a cancel handled by another instance stops the running request", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = createMemoryAiStore();
+      const runner = createAiService(store);
+      const other = createAiService(store);
+      const input = context();
+      let release!: (value: unknown) => void;
+      const generate = vi.fn<SectionWriter["generate"]>(
+        () => new Promise((resolve) => (release = resolve)),
+      );
+      const job = await runner.start(
+        (await runner.preview(input, [])).token,
+        "",
+        { generate },
+        async () => input,
+      );
+      expect((await other.cancel(job.id))?.status).toBe("cancelled");
+      await vi.advanceTimersByTimeAsync(AI_LIMITS.cancelCheckMs + 1);
+      expect(generate.mock.calls[0]![2].aborted).toBe(true);
+      release(ok);
+      await runner.wait(job.id);
+      expect(await runner.job(job.id)).toMatchObject({ status: "cancelled" });
+      expect((await runner.job(job.id))?.result).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("marks a job failed once its instance stopped and the deadline has long passed", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = createMemoryAiStore();
+      const input = context();
+      // The instance that started this job never runs it (killed right after responding).
+      const dead = createAiService(store);
+      const job = await dead.start(
+        (await dead.preview(input, [])).token,
+        "",
+        { generate: vi.fn() },
+        async () => input,
+        { timeoutMs: 30_000, schedule: () => {} },
+      );
+      const survivor = createAiService(store);
+      await vi.advanceTimersByTimeAsync(30_000 + AI_LIMITS.deadlineGraceMs - 1);
+      expect(await survivor.job(job.id)).toMatchObject({ status: "queued" });
+      await vi.advanceTimersByTimeAsync(2);
+      expect(await survivor.job(job.id)).toMatchObject({
+        status: "failed",
+        error: { code: "lost" },
+      });
+      // The section is free again for a new generation.
+      const next = await survivor.start(
+        (await survivor.preview(input, [])).token,
+        "",
+        { generate: async () => ok },
+        async () => input,
+      );
+      expect(next.id).not.toBe(job.id);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("consumes a preview once, even when two starts race", async () => {
+    const store = createMemoryAiStore();
+    const a = createAiService(store);
+    const b = createAiService(store);
+    const input = context();
+    const token = (await a.preview(input, [])).token;
+    const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
+    const results = await Promise.allSettled([
+      a.start(token, "", { generate }, async () => input),
+      b.start(token, "", { generate }, async () => input),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     expect(generate).toHaveBeenCalledTimes(1);
   });
 });

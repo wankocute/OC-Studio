@@ -7,7 +7,10 @@ import { describeAiError } from "./describe-error";
 import { logAiRequest } from "./transport";
 import { selectSectionFacts, type AiSnapshot } from "./facts";
 import { AiError, parseAiOutput, type SectionWriter } from "./provider";
+import type { AiCandidate, AiEntry, AiJobView, AiPreview, AiStore } from "./store";
 import type { RichTextDocument } from "../domain";
+
+export type { AiJobStatus, AiJobView } from "./store";
 
 export type AiContext = {
   sectionId: string;
@@ -17,127 +20,109 @@ export type AiContext = {
   groups: string[];
   title: string;
 };
-type Preview = {
-  kind: "preview";
-  expires: number;
-  input: Pick<AiContext, "sectionId" | "draftRevision" | "title" | "groups">;
-  allow: string[];
-  json: string;
-  snapshot: AiSnapshot;
-};
-type Candidate = {
-  kind: "candidate";
-  expires: number;
-  input: Preview["input"];
-  content: RichTextDocument;
-  snapshot: AiSnapshot;
-  json: string;
-  allow: string[];
+
+/** Runs a background task after the response (Next's `after()` in production). */
+export type Schedule = (task: () => Promise<void>) => void;
+
+type StartOptions = {
+  timeoutMs?: number;
+  model?: { id: string; label: string };
+  schedule?: Schedule;
 };
 
-export type AiJobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
-
-/** What the client sees of a background generation. Dates are ISO strings. */
-export type AiJobView = {
-  id: string;
-  sectionId: string;
-  title: string;
-  /** Model fixed when the job was created (id and readable name). */
-  model: { id: string; label: string };
-  status: AiJobStatus;
-  startedAt: string;
-  /** When the server gives up waiting for the provider. */
-  deadlineAt: string;
-  finishedAt?: string;
-  result?: {
-    token: string;
-    content: RichTextDocument;
-    stale: boolean;
-    draftRevision: number;
-    /** The suggestion is kept until then (15 minutes after it was produced). */
-    expiresAt: string;
-  };
-  error?: { code: AiError["code"]; message: string };
-};
-
-type Job = {
-  view: AiJobView;
-  controller: AbortController;
-  /** Finished jobs are forgotten after this time; active jobs never are. */
-  expires: number;
-  done: Promise<void>;
-};
-
-const isActive = (job: Job) => job.view.status === "queued" || job.view.status === "running";
+const isActive = (job: Pick<AiJobView, "status">) =>
+  job.status === "queued" || job.status === "running";
 
 /**
- * Section AI: previews (consent), background generations (jobs) and suggestions (candidates),
- * all in memory. Nothing survives a server restart: the client treats an unknown job as lost.
+ * Section AI: previews (consent), background generations (jobs) and suggestions (candidates).
+ * State lives in `store` (Postgres in production), so whichever instance serves the next request
+ * sees it. A job runs in the instance that started it, within that request's time budget; if that
+ * instance stops, the job is marked failed once its deadline (plus a grace period) has passed.
  */
-export function createAiService() {
-  const entries = new Map<string, Preview | Candidate>();
-  const jobs = new Map<string, Job>();
+export function createAiService(store: AiStore) {
+  /** Requests running in this instance, so a cancel arriving here aborts at once. */
+  const controllers = new Map<string, AbortController>();
+  /** Background runs started by this instance (tests and `generate` wait on them). */
+  const runs = new Map<string, Promise<void>>();
 
-  function prune() {
+  async function put(entry: AiEntry) {
     const now = Date.now();
-    for (const [key, entry] of entries) if (entry.expires <= now) entries.delete(key);
-    for (const [key, job] of jobs) if (!isActive(job) && job.expires <= now) jobs.delete(key);
-  }
-  function put(value: Preview | Candidate) {
-    prune();
-    if (entries.size >= AI_LIMITS.entries) throw new AiError("busy");
+    await store.prune(now);
     const token = randomUUID();
-    entries.set(token, value);
+    await store.putEntry(token, entry, now, AI_LIMITS.entries);
     return token;
   }
-  function get(token: string) {
-    const entry = entries.get(token);
-    if (!entry || entry.expires <= Date.now()) {
-      entries.delete(token);
-      throw new AiError("expired");
-    }
+  async function get(token: string) {
+    const entry = await store.getEntry(token, Date.now());
+    if (!entry) throw new AiError("expired");
     return entry;
   }
-  function activeJobFor(sectionId: string) {
-    return [...jobs.values()].find((job) => job.view.sectionId === sectionId && isActive(job));
-  }
-  function finish(job: Job, update: Partial<AiJobView>) {
-    // A cancelled job ignores whatever the provider returns later.
-    if (!isActive(job)) return;
+  async function finish(
+    id: string,
+    update: Pick<AiJobView, "result" | "error"> & {
+      status: "succeeded" | "failed" | "cancelled";
+    },
+  ) {
+    // A cancelled (or overdue) job ignores whatever the provider returns later.
     const now = Date.now();
-    job.view = { ...job.view, ...update, finishedAt: new Date(now).toISOString() };
-    job.expires = now + AI_LIMITS.jobTtlMs;
+    return store.finishJob(id, { ...update, finishedAt: now, expires: now + AI_LIMITS.jobTtlMs });
+  }
+  /** Jobs whose instance stopped can never finish on their own: fail them for the UI. */
+  async function sweep() {
+    const now = Date.now();
+    await store.failOverdue(now - AI_LIMITS.deadlineGraceMs, {
+      error: { code: "lost", message: describeAiError(new AiError("lost")) },
+      finishedAt: now,
+      expires: now + AI_LIMITS.jobTtlMs,
+    });
+    await store.prune(now);
   }
 
   async function run(
-    job: Job,
-    entry: Preview,
+    job: AiJobView,
+    entry: AiPreview,
     instruction: string,
     title: string,
     writer: SectionWriter,
     load: (sectionId: string) => Promise<AiContext>,
     timeoutMs: number,
   ) {
+    const controller = new AbortController();
+    controllers.set(job.id, controller);
     const startedAt = Date.now();
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let watch: ReturnType<typeof setInterval> | undefined;
     try {
-      job.view = { ...job.view, status: "running" };
+      await store.markRunning(job.id);
+      // A cancel may be handled by another instance: notice it and stop waiting for Google.
+      watch = setInterval(() => {
+        void store.getJob(job.id, Date.now()).then(
+          (current) => {
+            if (current && !isActive(current))
+              controller.abort(new DOMException("Cancelled by the user", "AbortError"));
+          },
+          () => {},
+        );
+      }, AI_LIMITS.cancelCheckMs);
       // Only the facts the user consented to (frozen in the preview) are sent.
       const output = await Promise.race([
         writer.generate(
           entry.json,
           JSON.stringify({ sectionTitle: title, request: instruction }),
-          job.controller.signal,
+          controller.signal,
         ),
         new Promise<never>((_, reject) => {
           timeout = setTimeout(() => {
             logAiRequest("timeout", startedAt, { stage: "watchdog", errorName: "TimeoutError" });
-            job.controller.abort(new DOMException("AI deadline exceeded", "TimeoutError"));
+            controller.abort(new DOMException("AI deadline exceeded", "TimeoutError"));
             reject(new AiError("timeout"));
           }, timeoutMs);
         }),
-      ]).finally(() => clearTimeout(timeout));
-      if (!isActive(job)) return;
+      ]).finally(() => {
+        clearTimeout(timeout);
+        clearInterval(watch);
+      });
+      if (controller.signal.aborted) return;
       const content = parseAiOutput(output);
       // Read (never sent anywhere) only to warn when facts changed while the AI was writing.
       const latest = await load(entry.input.sectionId);
@@ -145,7 +130,7 @@ export function createAiService() {
         selectSectionFacts(latest.facts, latest.context, latest.groups, entry.allow).json !==
           entry.json || latest.title !== entry.input.title;
       const expires = Date.now() + AI_LIMITS.ttlMs;
-      const token = put({
+      const candidate: AiCandidate = {
         kind: "candidate",
         expires,
         input: entry.input,
@@ -153,8 +138,9 @@ export function createAiService() {
         snapshot: entry.snapshot,
         json: entry.json,
         allow: entry.allow,
-      });
-      finish(job, {
+      };
+      const token = await put(candidate);
+      const finished = await finish(job.id, {
         status: "succeeded",
         result: {
           token,
@@ -164,21 +150,29 @@ export function createAiService() {
           expiresAt: new Date(expires).toISOString(),
         },
       });
+      // Cancelled meanwhile: the suggestion must not outlive the job that nobody wants.
+      if (!finished) await store.deleteEntry(token);
     } catch (error) {
+      clearInterval(watch);
       const failure = error instanceof AiError ? error : new AiError("unexpected");
       if (!(error instanceof AiError)) console.error("[profile-ai] job failed", error);
-      finish(job, {
+      await finish(job.id, {
         status: "failed",
         error: { code: failure.code, message: describeAiError(failure) },
+      }).catch((storeError: unknown) => {
+        // The deadline sweep will still mark it failed for the UI.
+        console.error("[profile-ai] could not record job failure", storeError);
       });
+    } finally {
+      controllers.delete(job.id);
     }
   }
 
   const service = {
-    preview(input: AiContext, allow: string[]) {
+    async preview(input: AiContext, allow: string[]) {
       const selected = selectSectionFacts(input.facts, input.context, input.groups, allow);
       if (selected.json.length > AI_LIMITS.inputChars) throw new AiError("limit");
-      const token = put({
+      const token = await put({
         kind: "preview",
         expires: Date.now() + AI_LIMITS.ttlMs,
         input: {
@@ -203,23 +197,22 @@ export function createAiService() {
     /**
      * Start a background generation from a preview and return at once. Checks that need the
      * database run first (no transaction is held while the provider works). A section with a job
-     * in progress gets that job back — the provider is never called twice for one section.
+     * in progress gets that job back — the provider is never called twice for one section
+     * (enforced by the store, so it holds across instances too).
      */
     async start(
       token: string,
       instruction: string,
       writer: SectionWriter,
       load: (sectionId: string) => Promise<AiContext>,
-      options: { timeoutMs?: number; model?: { id: string; label: string } } = {},
+      options: StartOptions = {},
     ): Promise<AiJobView> {
-      const entry = get(token);
-      if (entry.kind !== "preview") throw new AiError("expired");
-      const existing = activeJobFor(entry.input.sectionId);
-      if (existing) {
-        entries.delete(token);
-        return existing.view;
-      }
-      entries.delete(token); // Consent is consumed even when the provider fails.
+      await sweep();
+      // Consent is consumed even when the provider fails.
+      const entry = await store.takeEntry(token, Date.now());
+      if (!entry || entry.kind !== "preview") throw new AiError("expired");
+      const existing = await store.activeJob(entry.input.sectionId);
+      if (existing) return existing;
       if (instruction.length > AI_LIMITS.instructionChars) throw new AiError("limit");
       const current = await load(entry.input.sectionId);
       const selected = selectSectionFacts(
@@ -235,77 +228,67 @@ export function createAiService() {
       )
         throw new AiError("changed");
       if (Object.keys(selected.payload.values).length === 0) throw new AiError("empty");
-      // Another start for this section may have won while the facts were being read.
-      const raced = activeJobFor(entry.input.sectionId);
-      if (raced) return raced.view;
 
-      prune();
-      if (jobs.size >= AI_LIMITS.jobs) throw new AiError("busy");
       const timeoutMs = options.timeoutMs ?? AI_LIMITS.timeoutMs;
       const now = Date.now();
-      const job: Job = {
-        view: {
-          id: randomUUID(),
-          sectionId: entry.input.sectionId,
-          title: current.title,
-          model: options.model ?? { id: "default", label: "default" },
-          status: "queued",
-          startedAt: new Date(now).toISOString(),
-          deadlineAt: new Date(now + timeoutMs).toISOString(),
-        },
-        controller: new AbortController(),
-        expires: Number.POSITIVE_INFINITY,
-        done: Promise.resolve(),
+      const job: AiJobView = {
+        id: randomUUID(),
+        sectionId: entry.input.sectionId,
+        title: current.title,
+        model: options.model ?? { id: "default", label: "default" },
+        status: "queued",
+        startedAt: new Date(now).toISOString(),
+        deadlineAt: new Date(now + timeoutMs).toISOString(),
       };
-      jobs.set(job.view.id, job);
-      job.done = run(job, entry, instruction, current.title, writer, load, timeoutMs);
-      return job.view;
+      // Another start for this section may have won while the facts were being read.
+      const inserted = await store.insertJob(job, AI_LIMITS.jobs);
+      if (!inserted.inserted) return inserted.active;
+
+      let release!: () => void;
+      const done = new Promise<void>((resolve) => (release = resolve));
+      runs.set(job.id, done);
+      const task = () =>
+        run(job, entry, instruction, current.title, writer, load, timeoutMs).finally(() => {
+          runs.delete(job.id);
+          release();
+        });
+      (options.schedule ?? ((work) => void work()))(task);
+      return job;
     },
 
-    /** Current state of a job, or `null` if the server does not know it (restart, expired). */
-    job(id: string): AiJobView | null {
-      prune();
-      return jobs.get(id)?.view ?? null;
+    /** Current state of a job, or `null` if it is unknown (expired, dismissed). */
+    async job(id: string): Promise<AiJobView | null> {
+      await sweep();
+      return store.getJob(id, Date.now());
     },
 
     /** The latest job of each section that still has one (to restore the UI on reload). */
-    jobsForSections(sectionIds: readonly string[]): AiJobView[] {
-      prune();
-      const wanted = new Set(sectionIds);
-      const latest = new Map<string, AiJobView>();
-      for (const { view } of jobs.values()) {
-        if (!wanted.has(view.sectionId)) continue;
-        const previous = latest.get(view.sectionId);
-        if (!previous || previous.startedAt <= view.startedAt) latest.set(view.sectionId, view);
-      }
-      return [...latest.values()];
+    async jobsForSections(sectionIds: readonly string[]): Promise<AiJobView[]> {
+      if (sectionIds.length === 0) return [];
+      await sweep();
+      return store.latestJobs(sectionIds, Date.now());
     },
 
     /** Stop waiting for the provider. Aborting the request cannot guarantee Google stopped. */
-    cancel(id: string): AiJobView | null {
-      const job = jobs.get(id);
-      if (!job) return null;
-      if (isActive(job)) {
-        job.controller.abort(new DOMException("Cancelled by the user", "AbortError"));
-        finish(job, {
-          status: "cancelled",
-          error: { code: "cancelled", message: describeAiError(new AiError("cancelled")) },
-        });
-      }
-      return job.view;
+    async cancel(id: string): Promise<AiJobView | null> {
+      const cancelled = await finish(id, {
+        status: "cancelled",
+        error: { code: "cancelled", message: describeAiError(new AiError("cancelled")) },
+      });
+      // Running here: abort now. Elsewhere, that instance notices within `cancelCheckMs`.
+      controllers.get(id)?.abort(new DOMException("Cancelled by the user", "AbortError"));
+      return cancelled ?? store.getJob(id, Date.now());
     },
 
     /** Forget a finished job and its suggestion. */
-    dismiss(id: string) {
-      const job = jobs.get(id);
-      if (!job || isActive(job)) return;
-      if (job.view.result) entries.delete(job.view.result.token);
-      jobs.delete(id);
+    async dismiss(id: string) {
+      const deleted = await store.deleteFinishedJob(id);
+      if (deleted?.resultToken) await store.deleteEntry(deleted.resultToken);
     },
 
-    /** Resolves when the job has finished (tests, and callers that want to wait). */
+    /** Resolves when a job started by this instance has finished (tests, `generate`). */
     async wait(id: string) {
-      await jobs.get(id)?.done;
+      await runs.get(id);
       return service.job(id);
     },
 
@@ -315,7 +298,7 @@ export function createAiService() {
       instruction: string,
       writer: SectionWriter,
       load: (sectionId: string) => Promise<AiContext>,
-      options: { timeoutMs?: number; model?: { id: string; label: string } } = {},
+      options: StartOptions = {},
     ) {
       const started = await service.start(token, instruction, writer, load, options);
       const job = await service.wait(started.id);
@@ -334,7 +317,7 @@ export function createAiService() {
         snapshot: AiSnapshot;
       }) => Promise<{ draftRevision: number; savedAt: string }>,
     ) {
-      const entry = get(token);
+      const entry = await get(token);
       if (entry.kind !== "candidate") throw new AiError("expired");
       const latest = await load(entry.input.sectionId);
       const stale =
@@ -347,22 +330,17 @@ export function createAiService() {
         content: entry.content,
         snapshot: entry.snapshot,
       });
-      service.discard(token);
+      await service.discard(token);
       return { ...saved, content: entry.content, stale };
     },
 
     /** Drop a preview or suggestion, and the finished job that produced it. */
-    discard(token: string) {
-      entries.delete(token);
-      for (const [id, job] of jobs) if (job.view.result?.token === token) jobs.delete(id);
+    async discard(token: string) {
+      await store.deleteEntry(token);
+      await store.deleteJobsWithResult(token);
     },
   };
   return service;
 }
 
-// Survives HMR; bounded and ephemeral, deliberately not a generation archive. The key changed
-// with background jobs so a dev server never keeps an instance of the previous shape.
-const globalAi = globalThis as typeof globalThis & {
-  ocSectionAiJobs?: ReturnType<typeof createAiService>;
-};
-export const sectionAi = (globalAi.ocSectionAiJobs ??= createAiService());
+export type AiService = ReturnType<typeof createAiService>;

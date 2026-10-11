@@ -4,7 +4,8 @@ import { defineConfig } from "drizzle-kit";
 // Load .env / .env.local with the same precedence as Next.js.
 loadEnvConfig(process.cwd());
 
-const databaseUrl = process.env.DATABASE_URL;
+// Neon: migrations need the direct (unpooled) connection when one is configured.
+const databaseUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!databaseUrl) {
   throw new Error("DATABASE_URL chưa được cấu hình. Tạo .env.local từ .env.example.");
 }

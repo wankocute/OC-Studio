@@ -1,5 +1,6 @@
 import "server-only";
 
+import { attachDatabasePool } from "@vercel/functions";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
@@ -21,14 +22,24 @@ export class DatabaseNotConfiguredError extends Error {
 
 export type DatabaseClient = { pool: Pool; db: Database };
 
+/**
+ * On Vercel each function instance gets its own pool, and many instances may run at once, so
+ * the pool stays small (the app connects through Neon's pooler, `DATABASE_URL`), and idle
+ * clients are closed quickly so a suspended instance does not hold connections.
+ */
+const SERVERLESS = Boolean(process.env.VERCEL);
+
 /** Create a pool + Drizzle instance for an explicit URL (scripts, integration tests). */
 export function createDatabase(connectionString: string): DatabaseClient {
   const pool = new Pool({
     connectionString,
-    max: 10,
-    connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 30_000,
+    max: SERVERLESS ? 3 : 10,
+    // Neon may need a few seconds to wake a suspended (scaled-to-zero) compute.
+    connectionTimeoutMillis: SERVERLESS ? 15_000 : 5_000,
+    idleTimeoutMillis: SERVERLESS ? 5_000 : 30_000,
   });
+  // Releases idle clients before Vercel suspends the instance; a no-op anywhere else.
+  attachDatabasePool(pool);
   return { pool, db: drizzle({ client: pool, schema }) };
 }
 

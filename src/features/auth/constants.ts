@@ -15,8 +15,6 @@ export const AUTH_LIMITS = {
    * attempts — and only until the window ends.
    */
   maxFailuresTotal: 25,
-  /** Distinct clients tracked before old entries are pruned (memory bound). */
-  maxTrackedClients: 5_000,
   maxPasswordLength: 1_000,
   maxNextPathLength: 2_000,
 } as const;
