@@ -40,3 +40,23 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editors / IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# logs
+*.log
+
+# database backups (pg_dump) — keep outside the repo
+*.dump
+*.sql.gz
+
+# Claude Code local settings
+.claude/settings.local.json
