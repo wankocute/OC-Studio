@@ -8,6 +8,9 @@ describe("binZone", () => {
   it("counts the padded area around the bin as a drop", () => {
     expect(binZone({ x: 956, y: 656 }, bin)).toBe("over");
     expect(binZone({ x: 880, y: 590 }, bin)).toBe("over");
+    // Wider sideways than vertically.
+    expect(binZone({ x: 860, y: 656 }, bin)).toBe("over");
+    expect(binZone({ x: 956, y: 560 }, bin)).toBe("near");
   });
 
   it("reacts when close and ignores far pointers", () => {

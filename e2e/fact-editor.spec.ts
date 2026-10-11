@@ -716,7 +716,8 @@ test("dragging a field to the bin clears only its value; Escape or a miss change
   await expectSaved(page);
 
   const viewport = page.viewportSize()!;
-  const binCenter = { x: viewport.width - 24 - 56, y: viewport.height - 24 - 56 };
+  // The bin sits at the bottom centre of the viewport.
+  const binCenter = { x: viewport.width / 2, y: viewport.height - 24 - 56 };
   const lift = async () => {
     const box = (await handle.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

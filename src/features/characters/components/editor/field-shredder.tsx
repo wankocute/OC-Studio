@@ -27,8 +27,11 @@ const t = messages.editor.shredder;
 
 /** Movement before a press becomes a drag, so a plain click never shows the bin. */
 const DRAG_THRESHOLD = 5;
-/** The drop zone reaches a little past the bin so it is easy to hit. */
-const DROP_PADDING = 28;
+/**
+ * The drop zone reaches past the bin so it is easy to hit; wider sideways, since the bin sits at
+ * the bottom centre and is approached from either side.
+ */
+const DROP_PADDING = { x: 48, y: 28 } as const;
 /** Distance (from the bin's centre) at which the bin starts reacting. */
 const NEAR_DISTANCE = 220;
 const GHOST_WIDTH = 260;
@@ -45,10 +48,10 @@ type Rect = { left: number; top: number; right: number; bottom: number };
 /** Where the pointer is relative to the bin: inside the (padded) drop zone, close, or far. */
 export function binZone(point: { x: number; y: number }, bin: Rect): BinZone {
   if (
-    point.x >= bin.left - DROP_PADDING &&
-    point.x <= bin.right + DROP_PADDING &&
-    point.y >= bin.top - DROP_PADDING &&
-    point.y <= bin.bottom + DROP_PADDING
+    point.x >= bin.left - DROP_PADDING.x &&
+    point.x <= bin.right + DROP_PADDING.x &&
+    point.y >= bin.top - DROP_PADDING.y &&
+    point.y <= bin.bottom + DROP_PADDING.y
   ) {
     return "over";
   }
@@ -126,16 +129,19 @@ function Bin({ zone, binRef }: { zone: BinZone; binRef: Ref<HTMLDivElement> }) {
       aria-hidden
       data-field-bin={zone}
       className={cn(
-        "pointer-events-none fixed right-6 bottom-6 z-[61] flex size-28 flex-col items-center justify-center gap-2 rounded-2xl border-2 bg-card shadow-lg transition-colors duration-200",
+        // Bottom centre of the viewport (`inset-x-0 mx-auto` centres without a transform, which
+        // Motion owns), above the phone's home indicator. The scroll-to-top button in the
+        // bottom-right corner steps aside while a field is dragged.
+        "pointer-events-none fixed inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-[61] mx-auto flex size-28 flex-col items-center justify-center gap-2 rounded-2xl border-2 bg-card shadow-lg transition-colors duration-200",
         over
           ? "border-destructive bg-destructive/10 text-destructive"
           : zone === "near"
             ? "border-destructive/50 text-foreground"
             : "border-dashed border-border text-muted-foreground",
       )}
-      initial={{ opacity: 0, scale: 0.8, y: 16 }}
+      initial={{ opacity: 0, scale: 0.8, y: 24 }}
       animate={{ opacity: 1, scale: over ? 1.08 : zone === "near" ? 1.03 : 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.85, y: 16 }}
+      exit={{ opacity: 0, scale: 0.8, y: 24 }}
       transition={MOTION.layout}
     >
       {/* The shredder's mouth: widens when the field is about to be dropped. */}
