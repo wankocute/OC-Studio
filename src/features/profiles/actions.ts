@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/db";
+import { rejectUnauthenticatedAction } from "@/features/auth/server/session";
 import { messages } from "@/i18n";
 import { type ActionResult, fail, failFromError, invalidInput, ok } from "@/lib/action-result";
 
@@ -38,6 +39,8 @@ const invalidSourceGroups = () =>
 
 /** Start the character's primary profile with the template's sections. */
 export async function startProfileAction(characterId: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = id.safeParse(characterId);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -60,6 +63,8 @@ const addSchema = z.object({
 export async function addSectionAction(
   input: unknown,
 ): Promise<ActionResult<ProfileStructureView & { sectionId: string }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = addSchema.safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   const { characterId, profileId, revision: expected, ...section } = parsed.data;
@@ -87,6 +92,8 @@ const updateSchema = z.object({
 export async function updateSectionAction(
   input: unknown,
 ): Promise<ActionResult<ProfileStructureView>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = updateSchema.safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   const { characterId, profileId, revision: expected, sectionId, update } = parsed.data;
@@ -111,6 +118,8 @@ const reorderSchema = z.object({ profileId: id, revision, order: z.array(id).max
 export async function reorderSectionsAction(
   input: unknown,
 ): Promise<ActionResult<ProfileStructureView>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = reorderSchema.safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -143,6 +152,8 @@ export async function saveSectionDraftAction(
   content: unknown,
   replaceNewer: unknown = false,
 ): Promise<ActionResult<DraftSavedView>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = draftSchema.safeParse({ sectionId, draftRevision, replaceNewer });
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -171,6 +182,8 @@ export type StoredDraftView = {
 export async function loadSectionDraftAction(
   sectionId: unknown,
 ): Promise<ActionResult<StoredDraftView>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = id.safeParse(sectionId);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -194,6 +207,8 @@ export async function approveSectionAction(
   sectionId: unknown,
   draftRevision: unknown,
 ): Promise<ActionResult<{ approved: ApprovedView | null }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ sectionId: id, draftRevision: revision })
     .safeParse({ sectionId, draftRevision });
@@ -217,6 +232,8 @@ export async function approveSectionAction(
 export async function listSectionHistoryAction(
   sectionId: unknown,
 ): Promise<ActionResult<RevisionSummaryView[]>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = id.safeParse(sectionId);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -231,6 +248,8 @@ export async function getRevisionAction(
   sectionId: unknown,
   revisionId: unknown,
 ): Promise<ActionResult<{ content: RichTextDocument }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.object({ sectionId: id, revisionId: id }).safeParse({ sectionId, revisionId });
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -252,6 +271,8 @@ export async function restoreRevisionAction(
   revisionId: unknown,
   draftRevision: unknown,
 ): Promise<ActionResult<{ restored: RestoredView | null }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ sectionId: id, revisionId: id, draftRevision: revision })
     .safeParse({ sectionId, revisionId, draftRevision });

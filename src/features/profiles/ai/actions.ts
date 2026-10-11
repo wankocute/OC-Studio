@@ -2,6 +2,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
+import { rejectUnauthenticatedAction } from "@/features/auth/server/session";
 import { getServerEnv, InvalidServerEnvError } from "@/lib/env";
 import { fail, failFromError, invalidInput, ok, type ActionResult } from "@/lib/action-result";
 import { sectionLabel } from "../view";
@@ -39,6 +40,8 @@ export async function previewSectionAiAction(
 ): Promise<
   ActionResult<ReturnType<typeof sectionAi.preview> & ReturnType<typeof aiConfiguration>>
 > {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({
       sectionId: z.uuid(),
@@ -61,6 +64,8 @@ export async function previewSectionAiAction(
  * in the preview; a section that already has a job in progress gets that job back.
  */
 export async function startSectionAiAction(input: unknown): Promise<ActionResult<AiJobView>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({
       token: z.uuid(),
@@ -95,6 +100,8 @@ export async function startSectionAiAction(input: unknown): Promise<ActionResult
 export async function getSectionAiJobsAction(
   ids: unknown,
 ): Promise<ActionResult<(AiJobView | null)[]>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.array(z.uuid()).max(AI_LIMITS.jobs).safeParse(ids);
   if (!parsed.success) return invalidInput(parsed.error);
   return ok(parsed.data.map((id) => sectionAi.job(id)));
@@ -103,12 +110,16 @@ export async function getSectionAiJobsAction(
 export async function cancelSectionAiJobAction(
   id: unknown,
 ): Promise<ActionResult<AiJobView | null>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.uuid().safeParse(id);
   if (!parsed.success) return invalidInput(parsed.error);
   return ok(sectionAi.cancel(parsed.data));
 }
 
 export async function dismissSectionAiJobAction(id: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.uuid().safeParse(id);
   if (!parsed.success) return invalidInput(parsed.error);
   sectionAi.dismiss(parsed.data);
@@ -118,6 +129,8 @@ export async function dismissSectionAiJobAction(id: unknown): Promise<ActionResu
 export async function applySectionAiAction(
   input: unknown,
 ): Promise<ActionResult<Awaited<ReturnType<typeof sectionAi.apply>>>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ token: z.uuid(), confirmStale: z.boolean().default(false) })
     .safeParse(input);
@@ -144,6 +157,8 @@ export async function applySectionAiAction(
   }
 }
 export async function discardSectionAiAction(token: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.uuid().safeParse(token);
   if (!parsed.success) return invalidInput(parsed.error);
   sectionAi.discard(parsed.data);

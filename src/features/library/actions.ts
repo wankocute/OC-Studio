@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/db";
+import { rejectUnauthenticatedAction } from "@/features/auth/server/session";
 import { type ActionResult, failFromError, invalidInput, ok } from "@/lib/action-result";
 
 import { createCollectionRepository } from "./server/collection-repository";
@@ -19,6 +20,8 @@ export async function addTagAction(
   characterId: unknown,
   tag: unknown,
 ): Promise<ActionResult<{ id: string; name: string }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({
       characterId: idSchema,
@@ -43,6 +46,8 @@ export async function addTagAction(
 }
 
 export async function removeTagAction(characterId: unknown, tagId: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ characterId: idSchema, tagId: idSchema })
     .safeParse({ characterId, tagId });
@@ -66,6 +71,8 @@ const collectionInput = z.object({
 export async function createCollectionAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = collectionInput.safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -78,6 +85,8 @@ export async function createCollectionAction(
 }
 
 export async function updateCollectionAction(id: unknown, input: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.object({ id: idSchema, input: collectionInput }).safeParse({ id, input });
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -94,6 +103,8 @@ export async function deleteCollectionAction(
   id: unknown,
   refreshPage: unknown = true,
 ): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ id: idSchema, refreshPage: z.boolean() })
     .safeParse({ id, refreshPage });
@@ -111,6 +122,8 @@ export async function addToCollectionAction(
   collectionId: unknown,
   characterId: unknown,
 ): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ collectionId: idSchema, characterId: idSchema })
     .safeParse({ collectionId, characterId });
@@ -131,6 +144,8 @@ export async function removeFromCollectionAction(
   collectionId: unknown,
   characterId: unknown,
 ): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ collectionId: idSchema, characterId: idSchema })
     .safeParse({ collectionId, characterId });

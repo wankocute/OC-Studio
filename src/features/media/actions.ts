@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { MEDIA_ROLES } from "@/db/schema";
+import { rejectUnauthenticatedAction } from "@/features/auth/server/session";
 import { messages } from "@/i18n";
 import { type ActionResult, fail, failFromError, invalidInput, ok } from "@/lib/action-result";
 
@@ -28,6 +29,8 @@ const UPLOAD_MESSAGES = {
 
 /** Upload an avatar or reference image (multipart form: characterId, role, file). */
 export async function uploadCharacterImageAction(formData: FormData): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ characterId: z.uuid(), role: z.enum(MEDIA_ROLES) })
     .safeParse({ characterId: formData.get("characterId"), role: formData.get("role") });
@@ -66,6 +69,8 @@ export async function removeCharacterImageAction(
   characterId: unknown,
   mediaId: unknown,
 ): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ characterId: z.uuid(), mediaId: z.uuid() })
     .safeParse({ characterId, mediaId });

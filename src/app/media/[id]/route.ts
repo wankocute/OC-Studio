@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { isRepositoryError } from "@/db/repository-errors";
+import { rejectUnauthenticatedRequest } from "@/features/auth/server/session";
 import { createMediaRepository } from "@/features/library/server/media-repository";
 import { getMediaStorage } from "@/features/media/server/storage";
 
@@ -13,6 +14,8 @@ import { getMediaStorage } from "@/features/media/server/storage";
  */
 export async function GET(_request: Request, context: RouteContext<"/media/[id]">) {
   await connection();
+  const denied = await rejectUnauthenticatedRequest();
+  if (denied) return denied;
   const { id } = await context.params;
   if (!z.uuid().safeParse(id).success) return new Response(null, { status: 404 });
 

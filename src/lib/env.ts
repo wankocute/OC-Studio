@@ -23,6 +23,16 @@ const serverEnvSchema = z.object({
       error: "DATABASE_URL phải là URL PostgreSQL hợp lệ (postgresql://...).",
     })
     .optional(),
+  /**
+   * Single-user login (see `src/features/auth`). Production refuses every request unless both
+   * are set; leaving both blank outside production disables the login screen.
+   */
+  APP_PASSWORD: z.string().max(1_000, "APP_PASSWORD tối đa 1000 ký tự.").optional(),
+  /** Signs session cookies. Changing it (or APP_PASSWORD) signs every device out. */
+  AUTH_SECRET: z
+    .string()
+    .min(32, "AUTH_SECRET phải dài ít nhất 32 ký tự (xem .env.example để tạo chuỗi ngẫu nhiên).")
+    .optional(),
   /** Directory for uploaded images (outside `public/`). Defaults to `<project>/storage`. */
   MEDIA_STORAGE_DIR: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

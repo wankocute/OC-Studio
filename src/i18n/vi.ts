@@ -49,6 +49,22 @@ export const vi = {
     errorTitle: "Không tải được dữ liệu",
     errorBody: "Kiểm tra kết nối PostgreSQL rồi thử lại. Dữ liệu của bạn không bị thay đổi.",
   },
+  auth: {
+    title: "Đăng nhập",
+    description: "Nhập mật khẩu để mở không gian sáng tác của bạn.",
+    password: "Mật khẩu",
+    submit: "Đăng nhập",
+    submitting: "Đang đăng nhập…",
+    signOut: "Đăng xuất",
+    wrongPassword: "Mật khẩu không đúng.",
+    tooManyAttempts: (minutes: number) =>
+      `Đăng nhập sai quá nhiều lần. Hãy thử lại sau khoảng ${minutes} phút.`,
+    sessionExpired: "Phiên đăng nhập đã hết hạn. Hãy tải lại trang để đăng nhập lại.",
+    misconfigured: (missing: readonly string[]) =>
+      `OC Studio chưa cấu hình đăng nhập: thiếu ${missing.join(", ")}. ` +
+      "Đặt các biến môi trường này rồi khởi động lại ứng dụng.",
+    misconfiguredTitle: "Chưa cấu hình đăng nhập",
+  },
   theme: {
     label: "Giao diện",
     toggle: "Đổi giao diện",

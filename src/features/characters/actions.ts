@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { isRepositoryError } from "@/db/repository-errors";
+import { rejectUnauthenticatedAction } from "@/features/auth/server/session";
 import { messages } from "@/i18n";
 import { type ActionResult, fail, failFromError, invalidInput, ok } from "@/lib/action-result";
 
@@ -16,6 +17,8 @@ const revisionSchema = z.int().min(1);
 
 /** Create a character from basic info. The client navigates to it on success. */
 export async function createCharacterAction(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = basicInfoSchema.safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -38,6 +41,8 @@ export async function updateCharacterBasicsAction(
   revision: unknown,
   input: unknown,
 ): Promise<ActionResult<{ revision: number }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const target = z.object({ id: idSchema, revision: revisionSchema }).safeParse({ id, revision });
   if (!target.success) return invalidInput(target.error);
   const parsed = basicInfoSchema.safeParse(input);
@@ -64,6 +69,8 @@ export async function updateCharacterBasicsAction(
 }
 
 export async function setFavoriteAction(id: unknown, isFavorite: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.object({ id: idSchema, isFavorite: z.boolean() }).safeParse({ id, isFavorite });
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -85,6 +92,8 @@ export async function deleteCharacterAction(
   revision: unknown,
   refreshPage: unknown = true,
 ): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z
     .object({ id: idSchema, revision: revisionSchema, refreshPage: z.boolean() })
     .safeParse({ id, revision, refreshPage });

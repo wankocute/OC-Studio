@@ -15,6 +15,8 @@ export type ActionError = {
     | "invalid_input"
     | "upload_failed"
     | "migration_review_required"
+    | "unauthenticated"
+    | "rate_limited"
     | "unexpected";
   message: string;
   /** Field name → message, for forms. */

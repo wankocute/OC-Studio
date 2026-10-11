@@ -1,10 +1,13 @@
 import { connection } from "next/server";
 
 import { checkDatabaseHealth } from "@/db/health";
+import { rejectUnauthenticatedRequest } from "@/features/auth/server/session";
 
 /** GET /api/health — liveness of the app and PostgreSQL connectivity. Read-only. */
 export async function GET() {
   await connection();
+  const denied = await rejectUnauthenticatedRequest();
+  if (denied) return denied;
   const database = await checkDatabaseHealth();
   const ok = database.status === "connected";
 

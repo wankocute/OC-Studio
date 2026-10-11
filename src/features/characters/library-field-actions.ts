@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/db";
+import { rejectUnauthenticatedAction } from "@/features/auth/server/session";
 import { messages } from "@/i18n";
 import { type ActionResult, failFromError, invalidInput, ok } from "@/lib/action-result";
 
@@ -36,6 +37,8 @@ export async function createLibraryFieldAction(
   input: unknown,
   refreshPage: unknown = true,
 ): Promise<ActionResult<LibraryFieldDefinition>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = definitionShape.extend({ key: libraryFieldKeySchema }).safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   const repository = createLibraryDefinitionRepository(getDb());
@@ -58,6 +61,8 @@ export async function updateLibraryFieldAction(
   expectedVersion: unknown,
   input: unknown,
 ): Promise<ActionResult<LibraryFieldDefinition>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const target = z
     .object({ key: libraryFieldKeySchema, expectedVersion: versionSchema })
     .safeParse({ key, expectedVersion });
@@ -81,6 +86,8 @@ export async function updateLibraryFieldAction(
 }
 
 export async function deprecateLibraryFieldAction(key: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = libraryFieldKeySchema.safeParse(key);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -94,6 +101,8 @@ export async function deprecateLibraryFieldAction(key: unknown): Promise<ActionR
 
 /** Only definitions that no character ever stored a value for can be deleted. */
 export async function deleteLibraryFieldAction(key: unknown): Promise<ActionResult> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = libraryFieldKeySchema.safeParse(key);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
@@ -121,6 +130,8 @@ const groupInputSchema = z.object({
 export async function createLibraryGroupAction(
   input: unknown,
 ): Promise<ActionResult<CustomGroupDefinition>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = groupInputSchema.safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   const repository = createLibraryDefinitionRepository(getDb());

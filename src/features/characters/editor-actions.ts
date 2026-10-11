@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { getDb } from "@/db";
+import { rejectUnauthenticatedAction } from "@/features/auth/server/session";
 import { messages } from "@/i18n";
 import { type ActionResult, fail, failFromError, invalidInput, ok } from "@/lib/action-result";
 
@@ -36,6 +37,8 @@ export async function saveCharacterFactsAction(
   facts: unknown,
   reviewConfirmed: unknown = false,
 ): Promise<ActionResult<{ revision: number; savedAt: string }>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const target = targetSchema.safeParse({ id, revision, reviewConfirmed });
   if (!target.success) return invalidInput(target.error);
   const sheet = sheetSchema.safeParse(facts);
@@ -65,6 +68,8 @@ export async function saveCharacterFactsAction(
 export async function loadLatestCharacterAction(
   id: unknown,
 ): Promise<ActionResult<LatestCharacter>> {
+  const denied = await rejectUnauthenticatedAction();
+  if (denied) return denied;
   const parsed = z.uuid().safeParse(id);
   if (!parsed.success) return invalidInput(parsed.error);
   try {

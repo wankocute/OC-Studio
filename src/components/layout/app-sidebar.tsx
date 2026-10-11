@@ -3,7 +3,7 @@
 import { Feather } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import {
   Sidebar,
@@ -72,7 +72,8 @@ function NavMenu({ items }: { items: readonly NavItem[] }) {
   );
 }
 
-export function AppSidebar() {
+/** `footer` is server-rendered (e.g. sign-out, which depends on the environment). */
+export function AppSidebar({ footer }: { footer?: ReactNode }) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -110,6 +111,7 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <NavMenu items={secondaryNavigation} />
+        {footer}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
