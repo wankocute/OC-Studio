@@ -69,6 +69,8 @@ export const vi = {
   theme: {
     label: "Giao diện",
     toggle: "Đổi giao diện",
+    switchToDark: "Chuyển sang giao diện tối",
+    switchToLight: "Chuyển sang giao diện sáng",
     light: "Sáng",
     dark: "Tối",
     system: "Theo hệ thống",
