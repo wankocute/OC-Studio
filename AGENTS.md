@@ -20,7 +20,7 @@ Personal web app for creating and editing fictional character profiles (OCs) for
 
 - Work task by task. Do not implement features belonging to a later task.
 - **The character domain model is defined and user-approved** (`docs/`, decisions Q1–Q12). Change it only through a task that asks for it, and keep the docs in sync. Do not invent models for areas not yet specified (collections, templates storage, AI generations).
-- Do not add authentication, AI integration, or PDF export unless the task asks for it.
+- Authentication is a single shared password (see "Login & deployment"); do not add accounts or user tables unless a task asks for it.
 - Do not use mock data as if it were real data. Unimplemented controls must be visibly disabled (see `UnavailableAction`) or navigate somewhere meaningful — never a button that does nothing.
 - Never drop, reset, or modify the user's existing database. Never guess DB credentials.
 
@@ -118,6 +118,15 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - The approved version is an immutable `content_revisions` row; only `approve` changes `approved_revision_id`. Drafts autosave per section with `draft_revision`; structure changes use `profiles.revision`. History is recorded at milestones only (see `REVISION_KINDS`), never for unchanged content.
 - Opening the page never writes; the profile is created by an explicit action. Section keys (`ps_<random>`) are permanent; titles are display only.
 - Ctrl/Cmd+B inside a contenteditable is "bold": the sidebar shortcut ignores editable targets.
+
+## Login & deployment
+
+- Single user: `APP_PASSWORD` + `AUTH_SECRET` (≥ 32 chars). Code in `src/features/auth/`; deploy guide `docs/deploy-railway.md`.
+- **Fail closed:** in production, a missing/invalid variable makes every request answer 503 (`resolveAuthConfig`). Only outside production, with both blank, is login disabled.
+- Session = stateless HMAC cookie `oc_session` (`session-token.ts`, 30 days, httpOnly, `secure` in production, `sameSite=lax`); the signing key mixes in the password, so changing either variable signs everyone out.
+- `src/proxy.ts` (Next 16's renamed middleware) gates every path except build assets. It is **not** the only check: every Server Action starts with `rejectUnauthenticatedAction()` and every Route Handler with `rejectUnauthenticatedRequest()` — action ids are global, so any route can invoke any action. New actions/handlers must do the same.
+- Public paths: `/login` (page + login action) and `POST /logout` only. Failed logins are rate-limited in memory (single instance).
+- Production start: `pnpm start:prod` (storage check → `scripts/migrate.mjs` with the drizzle-orm migrator → `next start`, which reads `PORT`). Scripts in that path use runtime dependencies only. Run exactly one instance (AI jobs and the login limiter live in memory).
 
 ## Next.js 16 conventions
 

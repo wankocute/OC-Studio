@@ -201,6 +201,14 @@ pnpm dev           # http://localhost:3000
 pnpm build && pnpm start   # bản production
 ```
 
+**Đăng nhập:** bản production (`pnpm start`, Railway) bắt buộc có `APP_PASSWORD` và `AUTH_SECRET`
+(xem `.env.example`); thiếu thì mọi trang trả lỗi 503. Khi chạy `pnpm dev`, để trống cả hai thì không
+cần đăng nhập.
+
+**Deploy lên Railway** (một service chạy liên tục + PostgreSQL + Volume cho ảnh):
+xem [`docs/deploy-railway.md`](docs/deploy-railway.md). Lệnh khởi động production:
+`pnpm start:prod` (kiểm tra thư mục ảnh → migration → `next start`).
+
 ### Trình biên tập dữ kiện
 
 Mở một nhân vật → **Mở trình biên tập** (`/characters/<id>/edit`). Form được sinh từ định nghĩa trường của domain (không có component riêng cho từng trường). Thay đổi được tự động lưu sau khoảng 1 giây ngừng gõ, chỉ khi toàn bộ dữ kiện hợp lệ; trạng thái lưu hiển thị ở đầu trang. Nếu nhân vật vừa được sửa ở tab khác, tự động lưu dừng lại và bạn chọn “Giữ thay đổi của tôi” (gộp lên bản mới nhất, hỏi lại nếu cùng một mục bị sửa ở cả hai nơi) hoặc “Tải bản mới nhất”. Hồ sơ lưu bằng định dạng cũ có mục cần xem lại sẽ chỉ được lưu sau khi bạn xác nhận phần xem lại. Trường dùng chung cho nhiều nhân vật được quản lý ở `/fields`.
