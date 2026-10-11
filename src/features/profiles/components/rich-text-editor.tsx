@@ -16,7 +16,7 @@ import {
   Underline,
   Undo2,
 } from "lucide-react";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -62,7 +62,6 @@ type ToolbarState = {
   blockquote: boolean;
   canUndo: boolean;
   canRedo: boolean;
-  characters: number;
 };
 
 function selectToolbarState({ editor }: { editor: Editor | null }): ToolbarState | null {
@@ -78,7 +77,6 @@ function selectToolbarState({ editor }: { editor: Editor | null }): ToolbarState
     blockquote: editor.isActive("blockquote"),
     canUndo: editor.can().undo(),
     canRedo: editor.can().redo(),
-    characters: documentText(editor.getJSON() as RichTextDocument).length,
   };
 }
 
@@ -258,6 +256,12 @@ export function RichTextEditor({
     onChangeRef.current = onChange;
   }, [onChange]);
 
+  // Counted from the content itself: the editor loads its initial content without a
+  // transaction, so a count derived from editor updates stayed at 0 until the first edit.
+  const [characters, setCharacters] = useState(() =>
+    initialContent ? documentText(initialContent).length : 0,
+  );
+
   const editor = useEditor({
     extensions: extensions(placeholder),
     content: initialContent ?? undefined,
@@ -277,7 +281,11 @@ export function RichTextEditor({
         class: "rich-text min-h-72 px-4 py-3 outline-none md:min-h-96",
       },
     },
-    onUpdate: ({ editor: current }) => onChangeRef.current(plainDocument(current)),
+    onUpdate: ({ editor: current }) => {
+      const content = plainDocument(current);
+      setCharacters(documentText(content).length);
+      onChangeRef.current(content);
+    },
   });
 
   const state = useEditorState({ editor, selector: selectToolbarState });
@@ -296,7 +304,7 @@ export function RichTextEditor({
         <div className="min-h-72 px-4 py-3 md:min-h-96" aria-hidden />
       )}
       <p className="border-t px-4 py-1.5 text-right text-xs text-muted-foreground tabular-nums">
-        {messages.profiles.characterCount(state?.characters ?? 0)}
+        {messages.profiles.characterCount(characters)}
       </p>
     </div>
   );
