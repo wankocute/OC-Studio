@@ -159,3 +159,89 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 
 - `.env.local` holds secrets and is git-ignored; `.env.example` is the committed template.
 - Windows dev machine; PostgreSQL 17 runs as a Windows service. `psql` is not on PATH.
+
+## Development Efficiency & Task Execution Rules
+
+### 1. Scope Control
+- Only modify files directly related to the requested task.
+- Do not refactor, restructure, rename, or optimize unrelated code.
+- Do not modify backend, database, API, or data models for frontend-only tasks unless strictly necessary.
+- Preserve all existing features, behaviors, and data compatibility.
+- Do not implement additional features that were not explicitly requested.
+- Prefer minimal, targeted changes over large rewrites.
+
+### 2. Codebase Exploration
+- Inspect only the files and dependencies relevant to the task.
+- Use targeted file searches instead of reading the entire repository.
+- Do not repeatedly read files whose relevant contents are already available in context.
+- Check existing components, utilities, styles, and installed dependencies before creating replacements.
+- Avoid unnecessary exploration once the implementation path is clear.
+
+### 3. Implementation
+- Prefer simple, maintainable solutions over complex abstractions.
+- Reuse existing components and libraries whenever practical.
+- Avoid introducing new dependencies for features that can be implemented simply with existing tools.
+- For UI animations, prioritize CSS transitions or existing animation libraries.
+- When implementing animations from external demos, reproduce equivalent visual behavior without requiring the original source code.
+- Keep changes consistent with the project's existing architecture and design conventions.
+- Do not rewrite working components solely to improve code style.
+
+### 4. Testing & Validation
+- Use the smallest relevant validation method for each change.
+- Do not automatically run the entire test suite for minor frontend or CSS changes.
+- For simple styling or animation changes, use targeted checks when sufficient.
+- Run type checking, linting, or tests only when relevant to the modified code.
+- Avoid repeatedly running the same validation command without meaningful changes.
+- Do not run multiple full builds unless necessary to diagnose a specific issue.
+- Prefer one focused validation pass after implementation.
+- If validation fails, identify the actual cause before making changes.
+- Do not fix pre-existing or unrelated errors unless explicitly requested.
+- Never skip critical validation when changes may affect data integrity, security, or core functionality.
+
+### 5. Error Handling
+- Do not enter indefinite fix-test-fix loops.
+- After two unsuccessful attempts to resolve the same issue, stop and report the blocker, attempted solutions, and current state.
+- Do not modify unrelated code to make tests pass.
+- Clearly distinguish newly introduced errors from pre-existing problems.
+- Preserve a working implementation whenever possible.
+
+### 6. Task Completion
+- Stop once the requested functionality is implemented and reasonably validated.
+- Do not perform unsolicited cleanup, refactoring, or optimization after task completion.
+- Do not repeatedly review already validated code without a specific reason.
+- Keep the final report concise.
+- Report only:
+  - What was implemented.
+  - Which important files were modified.
+  - What validation was performed and its results.
+  - Any remaining issues or limitations.
+
+### 7. Frontend-Specific Guidelines
+- Treat visual changes, component styling, and animations as frontend-scoped tasks by default.
+- Prefer local component changes rather than modifying global styles.
+- Avoid changing existing API contracts or persisted data structures.
+- Maintain responsive behavior on desktop and mobile.
+- Respect existing accessibility requirements and reduced-motion preferences.
+- Avoid unnecessary JavaScript when CSS can achieve the same effect.
+- Do not add elaborate testing infrastructure for minor visual changes.
+
+### 8. Execution Priority
+When deciding between multiple implementation approaches, prioritize:
+
+1. Correctness and preservation of existing functionality.
+2. Completing the exact requested scope.
+3. Minimal code changes.
+4. Reusing existing infrastructure.
+5. Execution speed and efficient validation.
+6. Maintainability.
+
+Do not sacrifice correctness, security, or data integrity merely to reduce execution time.
+
+### 9. Tool Usage & Efficiency
+- Minimize unnecessary tool calls and redundant command execution.
+- Avoid repeatedly starting development servers or background processes.
+- Do not install packages unless needed for the requested functionality.
+- Do not run exploratory commands without a clear purpose.
+- Use existing project scripts instead of inventing additional workflows.
+- Never perform repeated build/test cycles solely to increase confidence after relevant checks have already passed.
+- If the task is complete, deliver the result immediately rather than continuing investigation.
