@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -155,10 +154,12 @@ export function SectionAi({
         {active ? t.job.running : result ? t.job.ready : t.open}
       </Button>
       <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent
+          className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
+          aria-describedby={undefined}
+        >
           <DialogHeader>
             <DialogTitle>{t.title}</DialogTitle>
-            <DialogDescription>{t.notice}</DialogDescription>
           </DialogHeader>
           {error && (
             <p role="alert" className="text-sm whitespace-pre-line text-destructive">
@@ -302,9 +303,6 @@ export function SectionAi({
             <div className="space-y-3">
               {preview && (
                 <>
-                  {preview.provider === "gemini" && (
-                    <p className="text-sm text-muted-foreground">{t.geminiNotice}</p>
-                  )}
                   {!preview.configured && (
                     <p role="status" className="text-sm text-muted-foreground">
                       {preview.configurationIssues.map((issue) => t.errors[issue]).join(" ")}
@@ -349,7 +347,6 @@ export function SectionAi({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">{t.model.hint}</p>
                 </div>
               )}
               <label className="block space-y-1 text-sm">

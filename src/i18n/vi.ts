@@ -927,7 +927,6 @@ export const vi = {
     savedFirst: "Chờ bản nháp lưu xong trước khi mở AI hoặc áp dụng.",
     model: {
       label: "Model",
-      hint: "Danh sách do server cho phép (GEMINI_ALLOWED_MODELS). Danh sách này không chứng minh project đang ở Free Tier; nếu project đã bật billing, Google vẫn có thể tính phí. App không tự đổi model khi lỗi hoặc hết quota.",
       default: "mặc định",
       used: (label: string) => `Model đã dùng: ${label}`,
     },
@@ -952,12 +951,8 @@ export const vi = {
     },
     missing:
       "Chưa cấu hình hợp lệ provider đã chọn. Gemini cần GEMINI_API_KEY và GEMINI_MODEL=gemini-3.8-flash; OpenAI cần OPENAI_API_KEY và OPENAI_MODEL. Bạn vẫn có thể soạn thủ công.",
-    geminiNotice:
-      "Google có thể dùng nội dung gửi qua Free Tier để cải thiện sản phẩm. Hãy dùng key của project Free Tier không bật billing; app không xác minh được trạng thái billing chỉ từ API key.",
     empty:
       "Không còn dữ kiện dùng được trong nhóm nguồn của mục. Hãy bổ sung dữ kiện hoặc chọn lại nhóm nguồn.",
-    notice:
-      "AI chỉ nhận dữ kiện bên dưới và yêu cầu viết của bạn. Bản nháp, bản duyệt và ảnh không được gửi. Đề xuất hết hạn sau 15 phút hoặc khi server khởi động lại.",
     errors: {
       geminiKeyMissing:
         "Server chưa nhận GEMINI_API_KEY hoặc giá trị đang trống. Kiểm tra .env.local ở thư mục gốc và khởi động lại server. Bạn vẫn có thể soạn thủ công.",

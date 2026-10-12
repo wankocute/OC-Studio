@@ -130,7 +130,6 @@ describe("section AI dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: t.open }));
     await waitFor(() => expect(screen.getByText(t.errors.geminiKeyMissing)).toBeVisible());
     await waitFor(() => expect(screen.getByRole("button", { name: t.generate })).toBeDisabled());
-    expect(screen.getByText(t.geminiNotice)).toBeVisible();
   });
 
   it("requires the manual draft to finish saving before opening AI", () => {
@@ -278,7 +277,6 @@ describe("model picker", () => {
     fireEvent.click(screen.getByRole("button", { name: t.open }));
     const picker = await screen.findByRole("combobox", { name: t.model.label });
     expect(picker).toHaveTextContent("Gemini 3.8 Flash");
-    expect(screen.getByText(t.model.hint)).toBeVisible();
 
     const generate = await screen.findByRole("button", { name: t.generate });
     await waitFor(() => expect(generate).toBeEnabled());

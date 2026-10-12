@@ -358,7 +358,6 @@ test("the AI dialog offers the allowed models and closes without starting anythi
     .first()
     .click();
   await expect(picker).toContainText("Flash-Lite");
-  await expect(dialog).toContainText("không chứng minh project đang ở Free Tier");
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Viết với AI" })).toBeVisible();

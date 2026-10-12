@@ -29,7 +29,6 @@ test("AI previews scoped facts, writes its text into the draft, and keeps the ap
   await page.getByRole("button", { name: "Duyệt nội dung", exact: true }).click();
   await page.getByRole("button", { name: "Viết với AI", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText(/Google có thể dùng nội dung gửi qua Free Tier/)).toBeVisible();
   await expect(dialog.getByTestId("ai-facts-preview")).toContainText("identity.age");
   // Sensitivity marks are retired: a fact once marked sensitive is sent like any other.
   await expect(dialog.getByTestId("ai-facts-preview")).toContainText("identity.biological_sex");
