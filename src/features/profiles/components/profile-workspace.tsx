@@ -165,6 +165,17 @@ export function ProfileWorkspace({
   useUnsavedChangesGuard(unsaved.length > 0, t.leaveWarning);
 
   const active = state.sections.find((section) => section.id === state.activeId);
+  const activeKey = active?.key;
+  // Mirror the selected section in the URL (`?section=<key>`): the page re-keys this workspace
+  // whenever stored content changes (e.g. applying an AI suggestion refreshes the route), and
+  // the new instance starts from that parameter instead of jumping back to the first section.
+  useEffect(() => {
+    if (!activeKey) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("section") === activeKey) return;
+    url.searchParams.set("section", activeKey);
+    window.history.replaceState(null, "", url);
+  }, [activeKey]);
   const activeDraft = active ? state.drafts[active.id] : undefined;
   const statuses = Object.fromEntries(
     state.sections.map((section) => [section.id, statusOfSection(state.drafts[section.id]!)]),
