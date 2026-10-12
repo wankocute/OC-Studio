@@ -25,7 +25,7 @@ import { formatDateTime } from "@/lib/format";
 
 import { useEditorContext } from "./editor-context";
 import { FieldMessage } from "./field-message";
-import { type ItemSensitivity, ItemControls, moveItem, useListSensitivity } from "./list-inputs";
+import { ItemControls, moveItem } from "./list-inputs";
 
 const t = messages.editor.refs;
 const ti = messages.editor.inputs;
@@ -241,17 +241,14 @@ export function CharacterRefListInput({
   fieldKey,
   draft,
   onChange,
-  sensitivity,
 }: {
   id: string;
   label: string;
   fieldKey: string;
   draft: Extract<LeafDraft, { kind: "character_ref_list" }>;
   onChange: (draft: Extract<LeafDraft, { kind: "character_ref_list" }>) => void;
-  sensitivity?: ItemSensitivity;
 }) {
   const { errors, nameOf } = useEditorContext();
-  const { isSensitive, setSensitive } = useListSensitivity(sensitivity);
   const linked = draft.items.flatMap((item) =>
     item.ref.type === "character" ? [item.ref.characterId] : [],
   );
@@ -296,8 +293,6 @@ export function CharacterRefListInput({
                         items: draft.items.filter((other) => other.id !== item.id),
                       })
                     }
-                    sensitive={isSensitive(item.id)}
-                    onSensitiveChange={setSensitive && ((value) => setSensitive(item.id, value))}
                   />
                 </div>
                 <FieldMessage message={error} />

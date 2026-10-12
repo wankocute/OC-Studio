@@ -35,13 +35,13 @@ describe("section AI", () => {
     try {
       const service = createAiService(createMemoryAiStore());
       const input = context();
-      const expired = await service.preview(input, []);
+      const expired = await service.preview(input);
       vi.advanceTimersByTime(AI_LIMITS.ttlMs + 1);
       const generate = vi.fn<SectionWriter["generate"]>(() => new Promise<unknown>(() => {}));
       await expect(
         service.generate(expired.token, "", { generate }, async () => input),
       ).rejects.toThrow("expired");
-      const preview = await service.preview(input, []);
+      const preview = await service.preview(input);
       const pending = service.generate(preview.token, "", { generate }, async () => input);
       const rejected = expect(pending).rejects.toThrow("timeout");
       await vi.advanceTimersByTimeAsync(AI_LIMITS.timeoutMs + 1);
@@ -56,7 +56,7 @@ describe("section AI", () => {
   it("does not silently overwrite a changed draft and retains the candidate on write conflict", async () => {
     const service = createAiService(createMemoryAiStore());
     const input = context();
-    const preview = await service.preview(input, []);
+    const preview = await service.preview(input);
     const candidate = await service.generate(
       preview.token,
       "",
@@ -79,10 +79,10 @@ describe("section AI", () => {
     const service = createAiService(createMemoryAiStore());
     const input = context();
     const before = structuredClone(input);
-    const preview = await service.preview(input, []);
+    const preview = await service.preview(input);
+    // Facts outside the section's groups are never sent; facts inside it all are.
     expect(preview.json).not.toContain("SECRET");
-    expect(preview.json).not.toContain("background.family");
-    expect(preview.permissions).toContain("background.family");
+    expect(preview.json).toContain("background.family");
     const generate = vi.fn<SectionWriter["generate"]>(async () => ({
       paragraphs: ["An sinh tại Huế."],
     }));
@@ -94,23 +94,23 @@ describe("section AI", () => {
     expect(write).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         draftRevision: 2,
-        snapshot: expect.objectContaining({ scope: ["displayName", "background.birthplace"] }),
+        snapshot: expect.objectContaining({
+          scope: ["displayName", "background.birthplace", "background.family"],
+        }),
       }),
     );
     await expect(service.apply(candidate.token, false, async () => input, write)).rejects.toThrow(
       "expired",
     );
   });
-  it("sensitive absence/inapplicability permissions only affect this request", async () => {
+  it("sends facts of fields marked sensitive, including absence/inapplicability", async () => {
     const service = createAiService(createMemoryAiStore());
     const input = context();
     for (const state of ["explicit_none", "not_applicable"] as const) {
       input.facts.values["background.family"] = { state };
-      const permitted = await service.preview(input, ["background.family"]);
-      expect(permitted.json).toContain(state);
-      expect((await service.preview(input, [])).json).not.toContain("background.family");
+      expect((await service.preview(input)).json).toContain(state);
     }
-    const preview = await service.preview(input, ["background.family"]);
+    const preview = await service.preview(input);
     const writer = {
       generate: vi.fn(async () => {
         throw new AiError("rateLimit");
@@ -127,7 +127,7 @@ describe("section AI", () => {
   it("rejects changed preview before calling provider", async () => {
     const service = createAiService(createMemoryAiStore());
     const input = context();
-    const preview = await service.preview(input, []);
+    const preview = await service.preview(input);
     const latest = structuredClone(input);
     latest.facts.displayName = "B";
     const generate = vi.fn();
@@ -139,7 +139,7 @@ describe("section AI", () => {
   it("warns about facts changing during generation and requires acknowledgement on apply", async () => {
     const service = createAiService(createMemoryAiStore());
     const input = context();
-    const preview = await service.preview(input, []);
+    const preview = await service.preview(input);
     let latest = input;
     const writer = {
       generate: async () => {
@@ -161,8 +161,8 @@ describe("section AI", () => {
   it("rejects empty scoped facts and malformed/blank/oversized output", async () => {
     const service = createAiService(createMemoryAiStore());
     const input = context();
-    input.groups = ["psychology"];
-    const preview = await service.preview(input, []);
+    input.groups = ["appearance"];
+    const preview = await service.preview(input);
     expect(preview.empty).toBe(true);
     const generate = vi.fn();
     await expect(
@@ -182,7 +182,7 @@ describe("section AI", () => {
       type: "paragraph",
     });
   });
-  it("filters sensitive items/subfields and fingerprints only received content", () => {
+  it("sends items/sub-fields marked sensitive without privacy metadata, and fingerprints them", () => {
     const facts: CharacterFacts = {
       schemaVersion: 3,
       displayName: "An",
@@ -198,7 +198,8 @@ describe("section AI", () => {
       },
     };
     const selected = selectSectionFacts(facts, {}, ["appearance"]);
-    expect(selected.json).not.toContain("SECRET");
+    expect(selected.json).toContain("hidden");
+    expect(selected.json).toContain('"origin":"SECRET"');
     expect(selected.json).not.toContain("sensitiveItemIds");
     expect(aiSnapshotStale(selected.snapshot, facts)).toBe(false);
     const changed = structuredClone(facts);
@@ -207,9 +208,6 @@ describe("section AI", () => {
       value: [{ id: "seen", location: "chân", origin: "SECRET" }],
     };
     expect(aiSnapshotStale(selected.snapshot, changed)).toBe(true);
-    const allowed = selectSectionFacts(facts, {}, ["appearance"], ["appearance.scars[hidden]"]);
-    expect(allowed.json).toContain("hidden");
-    expect(allowed.json).not.toContain('"origin":"SECRET"');
   });
   it("missing configuration never calls fetch; network/rate/output errors do not retry", async () => {
     const request = vi.fn<typeof fetch>();
@@ -244,7 +242,7 @@ describe("section AI background jobs", () => {
       () => new Promise((resolve) => (release = resolve)),
     );
     const job = await service.start(
-      (await service.preview(input, [])).token,
+      (await service.preview(input)).token,
       "",
       { generate },
       async () => input,
@@ -268,13 +266,13 @@ describe("section AI background jobs", () => {
     const input = context();
     const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
     const first = await service.start(
-      (await service.preview(input, [])).token,
+      (await service.preview(input)).token,
       "",
       { generate },
       async () => input,
     );
     const second = await service.start(
-      (await service.preview(input, [])).token,
+      (await service.preview(input)).token,
       "",
       { generate },
       async () => input,
@@ -290,7 +288,7 @@ describe("section AI background jobs", () => {
       const input = context();
       const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
       const job = await service.start(
-        (await service.preview(input, [])).token,
+        (await service.preview(input)).token,
         "",
         { generate },
         async () => input,
@@ -316,7 +314,7 @@ describe("section AI background jobs", () => {
       () => new Promise((resolve) => (release = resolve)),
     );
     const job = await service.start(
-      (await service.preview(input, [])).token,
+      (await service.preview(input)).token,
       "",
       { generate },
       async () => input,
@@ -340,7 +338,7 @@ describe("section AI background jobs", () => {
         () => new Promise((resolve) => (release = resolve)),
       );
       const job = await service.start(
-        (await service.preview(input, [])).token,
+        (await service.preview(input)).token,
         "",
         { generate },
         async () => input,
@@ -369,7 +367,7 @@ describe("section AI background jobs", () => {
     const input = context();
     for (const code of ["blocked", "rateLimit", "dns", "outputEmpty"] as const) {
       const job = await service.start(
-        (await service.preview(input, [])).token,
+        (await service.preview(input)).token,
         "",
         { generate: async () => Promise.reject(new AiError(code)) },
         async () => input,
@@ -403,16 +401,10 @@ describe("body details field (TASK 10)", () => {
     expect(isSensitive(getBuiltinField("appearance.body_details")!)).toBe(true);
   });
 
-  it("is left out of the AI payload unless allowed for that request", () => {
-    const withheld = selectSectionFacts(facts, {}, ["appearance"]);
-    expect(withheld.json).toContain("Cao gầy.");
-    expect(withheld.json).not.toContain("CHI TIẾT RIÊNG TƯ");
-    expect(withheld.permissions).toContain("appearance.body_details");
-
-    const allowed = selectSectionFacts(facts, {}, ["appearance"], ["appearance.body_details"]);
-    expect(allowed.json).toContain("CHI TIẾT RIÊNG TƯ");
-    // Permission is not remembered: the next selection without it withholds the field again.
-    expect(selectSectionFacts(facts, {}, ["appearance"]).json).not.toContain("CHI TIẾT");
+  it("is sent to AI with the rest of its section", () => {
+    const selected = selectSectionFacts(facts, {}, ["appearance"]);
+    expect(selected.json).toContain("Cao gầy.");
+    expect(selected.json).toContain("CHI TIẾT RIÊNG TƯ");
   });
 });
 
@@ -423,7 +415,7 @@ describe("model fixed per job", () => {
     const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
     const lite = { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" };
     const job = await service.start(
-      (await service.preview(input, [])).token,
+      (await service.preview(input)).token,
       "",
       { generate },
       async () => input,
@@ -434,7 +426,7 @@ describe("model fixed per job", () => {
     expect(job.model).toEqual(lite);
     // Starting again with another model returns the running job, still on its own model.
     const again = await service.start(
-      (await service.preview(input, [])).token,
+      (await service.preview(input)).token,
       "",
       { generate },
       async () => input,
@@ -455,7 +447,7 @@ describe("jobs shared through the store (serverless instances)", () => {
     const poller = createAiService(store);
     const input = context();
     const job = await starter.start(
-      (await starter.preview(input, [])).token,
+      (await starter.preview(input)).token,
       "",
       { generate: async () => ok },
       async () => input,
@@ -476,7 +468,7 @@ describe("jobs shared through the store (serverless instances)", () => {
     const scheduled: (() => Promise<void>)[] = [];
     const generate = vi.fn(async () => ok);
     const job = await service.start(
-      (await service.preview(input, [])).token,
+      (await service.preview(input)).token,
       "",
       { generate },
       async () => input,
@@ -500,7 +492,7 @@ describe("jobs shared through the store (serverless instances)", () => {
         () => new Promise((resolve) => (release = resolve)),
       );
       const job = await runner.start(
-        (await runner.preview(input, [])).token,
+        (await runner.preview(input)).token,
         "",
         { generate },
         async () => input,
@@ -525,7 +517,7 @@ describe("jobs shared through the store (serverless instances)", () => {
       // The instance that started this job never runs it (killed right after responding).
       const dead = createAiService(store);
       const job = await dead.start(
-        (await dead.preview(input, [])).token,
+        (await dead.preview(input)).token,
         "",
         { generate: vi.fn() },
         async () => input,
@@ -541,7 +533,7 @@ describe("jobs shared through the store (serverless instances)", () => {
       });
       // The section is free again for a new generation.
       const next = await survivor.start(
-        (await survivor.preview(input, [])).token,
+        (await survivor.preview(input)).token,
         "",
         { generate: async () => ok },
         async () => input,
@@ -557,7 +549,7 @@ describe("jobs shared through the store (serverless instances)", () => {
     const a = createAiService(store);
     const b = createAiService(store);
     const input = context();
-    const token = (await a.preview(input, [])).token;
+    const token = (await a.preview(input)).token;
     const generate = vi.fn<SectionWriter["generate"]>(() => new Promise(() => {}));
     const results = await Promise.allSettled([
       a.start(token, "", { generate }, async () => input),

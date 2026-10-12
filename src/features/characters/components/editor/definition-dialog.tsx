@@ -492,21 +492,6 @@ export function DefinitionDialog({
                             {t.required}
                           </Label>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`${prefix}-${subfield.key}-sensitive`}
-                            checked={subfield.sensitive}
-                            onCheckedChange={(checked) =>
-                              setSubfield({ sensitive: checked === true })
-                            }
-                          />
-                          <Label
-                            htmlFor={`${prefix}-${subfield.key}-sensitive`}
-                            className="font-normal"
-                          >
-                            {t.sensitive}
-                          </Label>
-                        </div>
                       </div>
                       <LeafConfigEditor
                         idPrefix={`${prefix}-${subfield.key}`}
@@ -535,19 +520,6 @@ export function DefinitionDialog({
           )}
 
           <div className="space-y-3">
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id={`${prefix}-sensitive`}
-                checked={draft.sensitive}
-                onCheckedChange={(checked) => update({ sensitive: checked === true })}
-              />
-              <div className="space-y-0.5">
-                <Label htmlFor={`${prefix}-sensitive`} className="font-normal">
-                  {t.sensitive}
-                </Label>
-                <FieldMessage tone="hint" message={t.sensitiveHint} />
-              </div>
-            </div>
             {!allowsExplicitNone({ kind: draft.kind } as never) && (
               <div className="flex items-start gap-2">
                 <Checkbox

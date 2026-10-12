@@ -31,7 +31,9 @@ test("AI previews scoped facts, writes its text into the draft, and keeps the ap
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText(/Google có thể dùng nội dung gửi qua Free Tier/)).toBeVisible();
   await expect(dialog.getByTestId("ai-facts-preview")).toContainText("identity.age");
-  await expect(dialog.getByTestId("ai-facts-preview")).not.toContainText("identity.biological_sex");
+  // Sensitivity marks are retired: a fact once marked sensitive is sent like any other.
+  await expect(dialog.getByTestId("ai-facts-preview")).toContainText("identity.biological_sex");
+  // Facts outside the section's groups are still never sent.
   await expect(dialog.getByTestId("ai-facts-preview")).not.toContainText("E2E_PRIVATE");
   await dialog.getByRole("button", { name: "Tạo nội dung", exact: true }).click();
   // Once the job finishes its text goes straight into the draft (no "use as draft" step): it is
@@ -48,7 +50,7 @@ test("AI previews scoped facts, writes its text into the draft, and keeps the ap
   );
 });
 
-test("provider failures leave manual editing usable and regenerate clears sensitive permissions", async ({
+test("provider failures leave manual editing usable; facts once marked sensitive are sent", async ({
   page,
 }, testInfo) => {
   const id = await insertCharacter(`AI lỗi ${testInfo.project.name} ${Date.now()}`, {
@@ -62,7 +64,7 @@ test("provider failures leave manual editing usable and regenerate clears sensit
   await expect(page.locator("[data-profile-workspace][data-ready]:visible")).toBeVisible();
   await page.getByRole("button", { name: "Viết với AI", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("checkbox", { name: "identity.biological_sex", exact: true }).check();
+  await expect(dialog.getByRole("checkbox")).toHaveCount(0);
   await expect(dialog.getByTestId("ai-facts-preview")).toContainText("identity.biological_sex");
   await dialog.getByRole("textbox", { name: "Yêu cầu viết (tùy chọn)" }).fill("E2E_RATE_LIMIT");
   await dialog.getByRole("button", { name: "Tạo nội dung", exact: true }).click();
@@ -72,13 +74,41 @@ test("provider failures leave manual editing usable and regenerate clears sensit
   await expect(aiButton).toHaveText("Viết với AI", { timeout: 30_000 });
   await aiButton.click();
   await expect(dialog.getByRole("alert")).toContainText("giới hạn lượt gọi");
-  await dialog.getByRole("button", { name: "Tạo lại với quyền mới", exact: true }).click();
-  await expect(dialog.getByTestId("ai-facts-preview")).not.toContainText("identity.biological_sex");
-  await expect(
-    dialog.getByRole("checkbox", { name: "identity.biological_sex", exact: true }),
-  ).not.toBeChecked();
+  await dialog.getByRole("button", { name: "Tạo lại", exact: true }).click();
+  await expect(dialog.getByTestId("ai-facts-preview")).toContainText("identity.biological_sex");
   await page.keyboard.press("Escape");
   const editor = page.getByRole("textbox", { name: "Nội dung mục Giới thiệu", exact: true });
   await editor.fill("Vẫn soạn thủ công được.");
   await expect(page.getByTestId("save-status").filter({ visible: true })).toHaveText(/Đã lưu/);
+});
+
+test("AI writing into a section keeps that section selected", async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  test.skip(isMobile, "The section list is a sidebar on desktop only.");
+  const id = await insertCharacter(`AI mục ${testInfo.project.name} ${Date.now()}`, {
+    values: { "appearance.overview": { state: "specified", value: "Cao gầy." } },
+  });
+  await page.goto(`/characters/${id}/profile`);
+  await page.getByRole("button", { name: "Tạo hồ sơ", exact: true }).click();
+  await expect(page.locator("[data-profile-workspace][data-ready]:visible")).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Các mục" })
+    .getByRole("button", { name: /^Ngoại hình —/ })
+    .click();
+  const heading = page.getByRole("heading", { level: 2, name: "Ngoại hình", exact: true });
+  await expect(heading).toBeVisible();
+  await expect(page).toHaveURL(/[?&]section=appearance\b/);
+
+  await page.getByRole("button", { name: "Viết với AI", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Tạo nội dung", exact: true }).click();
+  await expect(dialog).not.toBeVisible({ timeout: 30_000 });
+  // The finished text is written into the draft and the route refreshes; the workspace must
+  // stay on the section that was being written.
+  await expect(
+    page.getByRole("textbox", { name: "Nội dung mục Ngoại hình", exact: true }),
+  ).toContainText("đề xuất AI", { timeout: 30_000 });
+  await expect(heading).toBeVisible();
 });

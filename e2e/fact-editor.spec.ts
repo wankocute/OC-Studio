@@ -127,7 +127,7 @@ test("edits many field kinds and special states, and keeps them after reload", a
   );
 });
 
-test("list items keep stable ids and per-item sensitivity through reorder and reload", async ({
+test("list items keep stable ids through reorder and reload", async ({
   page,
   isMobile,
 }, testInfo) => {
@@ -140,33 +140,25 @@ test("list items keep stable ids and per-item sensitivity through reorder and re
   await textbox(features, "Đặc điểm").first().fill("Đôi cánh");
   await features.getByRole("button", { name: "Thêm mục" }).click();
   await textbox(features, "Đặc điểm").nth(1).fill("Vảy bạc");
-  await features.getByRole("button", { name: "Đánh dấu nhạy cảm: Vảy bạc" }).click();
   await expectSaved(page);
 
   const before = (await readCharacter(id)).facts.values["appearance.special_features"]!;
   const [wings, scales] = before.value as { id: string; name: string }[];
-  expect(before.sensitiveItemIds).toEqual([scales!.id]);
+  // Sensitivity marks are retired: there is nothing to mark per item.
+  await expect(features.getByRole("button", { name: /Đánh dấu nhạy cảm/ })).toHaveCount(0);
 
   await features.getByRole("button", { name: "Đưa Vảy bạc lên" }).click();
   await expectSaved(page);
   const after = (await readCharacter(id)).facts.values["appearance.special_features"]!;
   expect(after.value).toEqual([scales, wings]);
-  expect(after.sensitiveItemIds).toEqual([scales!.id]);
 
   await page.reload();
   await expect(page.locator(READY)).toBeVisible();
   await goToGroup(page, "Ngoại hình", isMobile);
-  await expect(
-    features.getByRole("button", { name: "Đánh dấu nhạy cảm: Vảy bạc" }),
-  ).toHaveAttribute("aria-pressed", "true");
-
-  // Removing a sensitive item asks first, then removes the item and its mark together.
   await features.getByRole("button", { name: "Xóa Vảy bạc" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Xóa mục" }).click();
   await expectSaved(page);
   const removed = (await readCharacter(id)).facts.values["appearance.special_features"]!;
   expect(removed.value).toEqual([wings]);
-  expect(removed.sensitiveItemIds).toBeUndefined();
 });
 
 test("relationships link library characters or unlinked names, suggest the reverse and survive deletion", async ({
@@ -614,7 +606,7 @@ test("the left navigation tree opens fields in built-in and custom groups", asyn
   expect((await readCharacter(id)).revision).toBe(1);
 });
 
-test("body details save as a sensitive fact, without any AI involved", async ({
+test("body details save as a plain fact, without any AI involved", async ({
   page,
   isMobile,
 }, testInfo) => {
@@ -622,7 +614,7 @@ test("body details save as a sensitive fact, without any AI involved", async ({
   await openEditor(page, id);
   await goToGroup(page, "Ngoại hình", isMobile);
   const details = field(page, "Chi tiết đặc điểm cơ thể");
-  await expect(details).toContainText("Nhạy cảm");
+  await expect(details).not.toContainText("Nhạy cảm");
   const text = "Vết bớt hình lá ở hông trái; giải phẫu ghi chú tự do — giữ nguyên từng chữ.";
   await textbox(page, "Chi tiết đặc điểm cơ thể").fill(text);
   await expectSaved(page);

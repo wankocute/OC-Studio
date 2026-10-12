@@ -1,30 +1,19 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Toggle } from "@/components/ui/toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LeafDraft } from "@/features/characters/editor/drafts";
 import { errorKeys } from "@/features/characters/editor/errors";
 import { newItemId } from "@/features/characters/editor/ids";
 import { messages } from "@/i18n";
-import { cn } from "@/lib/utils";
 
 import { useEditorContext } from "./editor-context";
 import { FieldMessage } from "./field-message";
 
 const t = messages.editor.inputs;
-
-/** Per-item sensitivity of a top-level list field (SEN-02). Absent for nested lists. */
-export type ItemSensitivity = {
-  ids: readonly string[];
-  onChange: (ids: string[]) => void;
-};
 
 export function moveItem<T>(items: readonly T[], index: number, direction: -1 | 1): T[] {
   const target = index + direction;
@@ -34,51 +23,22 @@ export function moveItem<T>(items: readonly T[], index: number, direction: -1 | 
   return next;
 }
 
-/** Reorder / sensitivity / remove controls of one list item. Ids never change. */
+/** Reorder / remove controls of one list item. Ids never change. */
 export function ItemControls({
   itemLabel,
   index,
   count,
   onMove,
   onRemove,
-  sensitive,
-  onSensitiveChange,
 }: {
   itemLabel: string;
   index: number;
   count: number;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
-  sensitive?: boolean;
-  /** Omitted when items cannot be marked individually. */
-  onSensitiveChange?: (sensitive: boolean) => void;
 }) {
-  const removeButton = (
-    <Button type="button" variant="ghost" size="icon-sm" aria-label={t.removeItem(itemLabel)}>
-      <Trash2 aria-hidden className="text-muted-foreground" />
-    </Button>
-  );
   return (
     <div className="flex shrink-0 items-center">
-      {onSensitiveChange && (
-        // Optional, per item: nothing is sensitive unless the field or the user says so.
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Toggle
-              size="sm"
-              aria-label={t.markSensitive(itemLabel)}
-              pressed={sensitive === true}
-              onPressedChange={onSensitiveChange}
-              className="data-[state=on]:text-warning"
-            >
-              <ShieldAlert aria-hidden />
-            </Toggle>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-64">
-            {t.markSensitiveTitle} — {t.sensitiveItemHint}
-          </TooltipContent>
-        </Tooltip>
-      )}
       <Button
         type="button"
         variant="ghost"
@@ -99,57 +59,17 @@ export function ItemControls({
       >
         <ArrowDown aria-hidden />
       </Button>
-      {sensitive ? (
-        // Removing an item also removes its sensitivity mark: ask first.
-        <ConfirmDialog
-          trigger={removeButton}
-          title={t.removeSensitiveTitle}
-          description={t.removeSensitiveBody}
-          confirmLabel={t.removeConfirm}
-          onConfirm={async () => {
-            onRemove();
-            return true;
-          }}
-        />
-      ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t.removeItem(itemLabel)}
-          onClick={onRemove}
-        >
-          <Trash2 aria-hidden className="text-muted-foreground" />
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={t.removeItem(itemLabel)}
+        onClick={onRemove}
+      >
+        <Trash2 aria-hidden className="text-muted-foreground" />
+      </Button>
     </div>
   );
-}
-
-export function SensitiveBadge() {
-  return (
-    <Badge variant="outline" className="border-warning/40 text-warning">
-      <ShieldAlert aria-hidden />
-      {t.sensitiveItem}
-    </Badge>
-  );
-}
-
-/**
- * Sensitivity marks shared by list editors. Removing an item needs no bookkeeping here: marks of
- * items that no longer exist are dropped when the fact is built (`draftToFact`).
- */
-export function useListSensitivity(sensitivity: ItemSensitivity | undefined) {
-  const isSensitive = (id: string) => sensitivity?.ids.includes(id) ?? false;
-  const setSensitive = sensitivity
-    ? (id: string, marked: boolean) =>
-        sensitivity.onChange(
-          marked
-            ? [...sensitivity.ids.filter((other) => other !== id), id]
-            : sensitivity.ids.filter((other) => other !== id),
-        )
-    : undefined;
-  return { isSensitive, setSensitive };
 }
 
 export function AddItemButton({
@@ -174,18 +94,15 @@ export function TextListInput({
   fieldKey,
   draft,
   onChange,
-  sensitivity,
 }: {
   id: string;
   label: string;
   fieldKey: string;
   draft: Extract<LeafDraft, { kind: "text_list" }>;
   onChange: (draft: Extract<LeafDraft, { kind: "text_list" }>) => void;
-  sensitivity?: ItemSensitivity;
 }) {
   const { errors } = useEditorContext();
   const [focusId, setFocusId] = useState<string>();
-  const { isSensitive, setSensitive } = useListSensitivity(sensitivity);
 
   const insertAfter = (index: number) => {
     const item = { id: newItemId(), text: "" };
@@ -202,7 +119,6 @@ export function TextListInput({
           {draft.items.map((item, index) => {
             const itemLabel = t.itemLabel(label, index + 1);
             const error = errors[errorKeys.item(fieldKey, item.id)];
-            const marked = isSensitive(item.id);
             return (
               <li key={item.id} className="space-y-1">
                 <div className="flex items-center gap-1">
@@ -212,7 +128,6 @@ export function TextListInput({
                     value={item.text}
                     autoFocus={item.id === focusId}
                     aria-invalid={Boolean(error) || undefined}
-                    className={cn(marked && "border-warning/50")}
                     onChange={(event) =>
                       onChange({
                         ...draft,
@@ -241,8 +156,6 @@ export function TextListInput({
                         items: draft.items.filter((other) => other.id !== item.id),
                       })
                     }
-                    sensitive={marked}
-                    onSensitiveChange={setSensitive && ((value) => setSensitive(item.id, value))}
                   />
                 </div>
                 <FieldMessage message={error} />

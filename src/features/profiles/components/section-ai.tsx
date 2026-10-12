@@ -65,7 +65,6 @@ export function SectionAi({
 }) {
   const { job, open, setOpen } = ai;
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [allow, setAllow] = useState<string[]>([]);
   const [instruction, setInstruction] = useState("");
   /** Picked model id; `null` = the server's default. Fixed into the job when it starts. */
   const [model, setModel] = useState<string | null>(null);
@@ -103,14 +102,13 @@ export function SectionAi({
       else failure?.();
     });
   }
-  function prepare(next: string[] = []) {
-    setAllow(next);
+  function prepare() {
     setConfirm(false);
     const oldToken = preview?.token;
     setPreview(null);
     run(async () => {
       if (oldToken) await discardSectionAiAction(oldToken);
-      return previewSectionAiAction({ sectionId, allow: next });
+      return previewSectionAiAction({ sectionId });
     }, setPreview);
   }
   /** Leave a finished job (and its suggestion) and start over from a fresh preview. */
@@ -137,7 +135,6 @@ export function SectionAi({
     // Consent is per request: an unused preview is dropped. Jobs and suggestions stay.
     if (preview) void discardSectionAiAction(preview.token);
     setPreview(null);
-    setAllow([]);
   }
 
   return (
@@ -327,28 +324,6 @@ export function SectionAi({
                       {JSON.stringify(JSON.parse(preview.json), null, 2)}
                     </pre>
                   </details>
-                  {preview.permissions.length > 0 && (
-                    <fieldset className="space-y-2">
-                      <legend className="text-sm font-medium">{t.sensitive}</legend>
-                      {preview.permissions.map((ref) => (
-                        <label key={ref} className="flex items-start gap-2 text-sm break-all">
-                          <input
-                            type="checkbox"
-                            disabled={busy}
-                            checked={allow.includes(ref)}
-                            onChange={(event) =>
-                              prepare(
-                                event.target.checked
-                                  ? [...allow, ref]
-                                  : allow.filter((key) => key !== ref),
-                              )
-                            }
-                          />
-                          {ref}
-                        </label>
-                      ))}
-                    </fieldset>
-                  )}
                 </>
               )}
               {preview && preview.models.length > 0 && (
@@ -394,7 +369,6 @@ export function SectionAi({
                     if (!preview) return;
                     const token = preview.token;
                     setPreview(null);
-                    setAllow([]);
                     // The job runs on the server: close right away, the section button shows
                     // that it is running. A refused start reopens the dialog with the reason.
                     setOpen(false);

@@ -12,7 +12,7 @@ import {
   SingleSelectInput,
   TextInput,
 } from "./basic-inputs";
-import { type ItemSensitivity, TextListInput } from "./list-inputs";
+import { TextListInput } from "./list-inputs";
 import { CharacterRefInput, CharacterRefListInput } from "./ref-inputs";
 
 export type LeafInputProps = {
@@ -27,8 +27,6 @@ export type LeafInputProps = {
   optionPath: string;
   error?: string;
   describedBy?: string;
-  /** Only for top-level list fields. */
-  sensitivity?: ItemSensitivity;
 };
 
 /** Kinds whose single primary control can be the target of a `<label for>`. */
@@ -83,7 +81,6 @@ export function LeafInput(props: LeafInputProps) {
           fieldKey={fieldKey}
           draft={draft as never}
           onChange={onChange}
-          sensitivity={props.sensitivity}
         />
       );
     case "character_ref":
@@ -104,7 +101,6 @@ export function LeafInput(props: LeafInputProps) {
           fieldKey={fieldKey}
           draft={draft as never}
           onChange={onChange}
-          sensitivity={props.sensitivity}
         />
       );
   }

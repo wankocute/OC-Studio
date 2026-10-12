@@ -49,7 +49,6 @@ const preview = (overrides: Partial<{ configured: boolean; issues: string[] }> =
   data: {
     token: "00000000-0000-4000-8000-000000000001" as const,
     json: '{"values":{"identity.age":{"state":"specified","value":"25"}}}',
-    permissions: [],
     empty: false,
     draftRevision: 1,
     configured: overrides.configured ?? true,

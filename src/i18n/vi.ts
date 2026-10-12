@@ -276,16 +276,12 @@ export const vi = {
       release: "Thả để xóa",
     },
     badges: {
-      sensitive: "Nhạy cảm",
-      sensitiveHint:
-        "Dữ kiện nhạy cảm vẫn được lưu bình thường, nhưng mặc định không được gửi cho AI.",
       deprecated: "Ngừng sử dụng",
       deprecatedHint:
         "Định nghĩa đã ngừng sử dụng: dữ liệu hiện có được giữ, nhân vật khác không dùng mới được.",
       custom: "Riêng nhân vật",
       library: "Dùng chung",
       review: "Cần xem lại",
-      sensitiveSubfield: "Trường con nhạy cảm",
     },
     kinds: {
       short_text: "Văn bản ngắn",
@@ -305,8 +301,8 @@ export const vi = {
     kindHints: {
       date: "Có thể chỉ nhập năm hoặc tháng, hoặc mô tả bằng lời cho lịch hư cấu.",
       measure: "Nhập số và chọn đơn vị. Đánh dấu “Khoảng” nếu chỉ là ước lượng.",
-      text_list: "Mỗi dòng là một mục. Có thể sắp xếp và đánh dấu nhạy cảm từng mục.",
-      object_list: "Thêm từng mục; mỗi mục có các thông tin riêng và có thể đánh dấu nhạy cảm.",
+      text_list: "Mỗi dòng là một mục. Có thể sắp xếp từng mục.",
+      object_list: "Thêm từng mục; mỗi mục có các thông tin riêng.",
       character_ref: "Chọn một OC trong thư viện, hoặc nhập tên nhân vật chưa có hồ sơ.",
       character_ref_list: "Chọn OC trong thư viện, hoặc nhập tên nhân vật chưa có hồ sơ.",
       boolean: "“Không” là một câu trả lời — khác với chưa xác định.",
@@ -337,14 +333,6 @@ export const vi = {
       moveUp: (label: string) => `Đưa ${label} lên`,
       moveDown: (label: string) => `Đưa ${label} xuống`,
       emptyList: "Chưa có mục nào.",
-      markSensitive: (label: string) => `Đánh dấu nhạy cảm: ${label}`,
-      markSensitiveTitle: "Đánh dấu riêng tư",
-      sensitiveItemHint: "Không gửi dữ kiện này cho AI nếu bạn chưa cho phép.",
-      sensitiveItem: "Nhạy cảm",
-      removeSensitiveTitle: "Xóa mục đã đánh dấu nhạy cảm?",
-      removeSensitiveBody:
-        "Mục này và dấu nhạy cảm của nó sẽ bị xóa khỏi danh sách. Thay đổi được lưu tự động.",
-      removeConfirm: "Xóa mục",
       expandItem: (label: string) => `Mở ${label}`,
       collapseItem: (label: string) => `Thu gọn ${label}`,
       untitledItem: "Mục chưa có nội dung",
@@ -498,8 +486,6 @@ export const vi = {
       descriptionPlaceholder: "Hiện bên dưới tên trường khi nhập",
       kind: "Kiểu dữ liệu",
       group: "Nhóm",
-      sensitive: "Dữ kiện nhạy cảm",
-      sensitiveHint: "Vẫn được lưu bình thường, nhưng mặc định không được gửi cho AI.",
       allowExplicitNone: "Cho phép “Xác nhận không có”",
       allowExplicitNoneHint: "Danh sách và lựa chọn nhiều luôn cho phép trạng thái này.",
       options: "Các lựa chọn",
@@ -927,11 +913,10 @@ export const vi = {
     title: "AI hỗ trợ mục này",
     open: "Viết với AI",
     preview: "Dữ kiện sẽ gửi",
-    sensitive: "Cho phép dữ kiện nhạy cảm cho lần tạo này",
     instruction: "Yêu cầu viết (tùy chọn)",
     generate: "Tạo nội dung",
     generating: "Đang tạo…",
-    regenerate: "Tạo lại với quyền mới",
+    regenerate: "Tạo lại",
     apply: "Dùng làm bản nháp",
     discard: "Bỏ qua",
     candidate: "Nội dung đề xuất",
@@ -972,7 +957,7 @@ export const vi = {
     empty:
       "Không còn dữ kiện dùng được trong nhóm nguồn của mục. Hãy bổ sung dữ kiện hoặc chọn lại nhóm nguồn.",
     notice:
-      "AI chỉ nhận dữ kiện bên dưới và yêu cầu viết của bạn. Bản nháp, bản duyệt và ảnh không được gửi. Quyền nhạy cảm không được nhớ cho lần sau. Đề xuất hết hạn sau 15 phút hoặc khi server khởi động lại.",
+      "AI chỉ nhận dữ kiện bên dưới và yêu cầu viết của bạn. Bản nháp, bản duyệt và ảnh không được gửi. Đề xuất hết hạn sau 15 phút hoặc khi server khởi động lại.",
     errors: {
       geminiKeyMissing:
         "Server chưa nhận GEMINI_API_KEY hoặc giá trị đang trống. Kiểm tra .env.local ở thư mục gốc và khởi động lại server. Bạn vẫn có thể soạn thủ công.",

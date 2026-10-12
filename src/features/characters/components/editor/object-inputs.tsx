@@ -1,12 +1,11 @@
 "use client";
 
-import { ChevronDown, ShieldAlert } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { isSensitive, type SubfieldDefinition } from "@/features/characters/domain";
+import type { SubfieldDefinition } from "@/features/characters/domain";
 import {
   emptyObjectItem,
   type LeafDraft,
@@ -22,14 +21,7 @@ import { cn } from "@/lib/utils";
 import { useEditorContext } from "./editor-context";
 import { FieldMessage } from "./field-message";
 import { hasSingleControl, LeafInput } from "./leaf-input";
-import {
-  AddItemButton,
-  type ItemSensitivity,
-  ItemControls,
-  moveItem,
-  SensitiveBadge,
-  useListSensitivity,
-} from "./list-inputs";
+import { AddItemButton, ItemControls, moveItem } from "./list-inputs";
 
 const t = messages.editor;
 
@@ -84,12 +76,6 @@ function ObjectFields({
                   </span>
                 )}
               </Label>
-              {isSensitive(subfield) && (
-                <Badge variant="outline" className="border-warning/40 text-warning">
-                  <ShieldAlert aria-hidden />
-                  {t.badges.sensitiveSubfield}
-                </Badge>
-              )}
             </div>
             <LeafInput
               config={subfield}
@@ -155,7 +141,6 @@ export function ObjectListInput({
   fields,
   draft,
   onChange,
-  sensitivity,
 }: {
   id: string;
   label: string;
@@ -163,11 +148,9 @@ export function ObjectListInput({
   fields: readonly SubfieldDefinition[];
   draft: Extract<ValueDraft, { kind: "object_list" }>;
   onChange: (draft: Extract<ValueDraft, { kind: "object_list" }>) => void;
-  sensitivity?: ItemSensitivity;
 }) {
   const { errors } = useEditorContext();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const { isSensitive: isItemSensitive, setSensitive } = useListSensitivity(sensitivity);
 
   const toggle = (itemId: string) =>
     setCollapsed((current) => {
@@ -188,17 +171,10 @@ export function ObjectListInput({
             const title = itemTitle(fields, item);
             const itemLabel = title ?? t.inputs.itemLabel(label, index + 1);
             const isCollapsed = collapsed.has(item.id);
-            const marked = isItemSensitive(item.id);
             const bodyId = `${id}-${item.id}-body`;
             const error = errors[errorKeys.item(fieldKey, item.id)];
             return (
-              <li
-                key={item.id}
-                className={cn(
-                  "rounded-lg border bg-background/60",
-                  marked ? "border-warning/50" : "border-border/80",
-                )}
-              >
+              <li key={item.id} className="rounded-lg border border-border/80 bg-background/60">
                 <div className="flex items-center gap-1 border-b border-border/60 py-1 pr-1 pl-2">
                   <Button
                     type="button"
@@ -227,7 +203,6 @@ export function ObjectListInput({
                       )}
                     </span>
                   </Button>
-                  {marked && <SensitiveBadge />}
                   <ItemControls
                     itemLabel={itemLabel}
                     index={index}
@@ -241,8 +216,6 @@ export function ObjectListInput({
                         items: draft.items.filter((other) => other.id !== item.id),
                       })
                     }
-                    sensitive={marked}
-                    onSensitiveChange={setSensitive && ((value) => setSensitive(item.id, value))}
                   />
                 </div>
                 <div id={bodyId} hidden={isCollapsed} className="space-y-2 p-3">

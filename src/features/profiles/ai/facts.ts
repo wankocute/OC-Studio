@@ -129,7 +129,6 @@ export function selectSectionFacts(
   facts: CharacterFacts,
   context: DefinitionContext,
   groups: readonly string[],
-  allowSensitive: readonly string[] = [],
 ) {
   const sources = factSourcesOf(facts, context.library ?? { fields: [], groups: [] });
   const keys = new Set(groups.flatMap((group) => [...(sources.fieldsByGroup.get(group) ?? [])]));
@@ -137,8 +136,13 @@ export function selectSectionFacts(
     ...facts,
     values: Object.fromEntries(Object.entries(facts.values).filter(([key]) => keys.has(key))),
   };
-  const selection = selectFactsForAi(scoped, { allowSensitive }, context);
-  const denied = selectFactsForAi(scoped, {}, context);
+  // Sensitivity marks are no longer used: every fact of the section's groups is sent. A field
+  // permission also unlocks the field's items and sub-fields, so allowing every key allows all.
+  const selection = selectFactsForAi(
+    scoped,
+    { allowSensitive: Object.keys(scoped.values) },
+    context,
+  );
   const resolve = createFieldResolver(facts.custom, context);
   const payload = {
     displayName: selection.facts.displayName,
@@ -165,9 +169,6 @@ export function selectSectionFacts(
       }),
     ),
   };
-  const permissions = [
-    ...new Set(denied.excluded.filter((x) => x.reason === "sensitive").map((x) => x.ref)),
-  ];
   const snapshot = aiSnapshot(payload);
   snapshot.aiDefinitionHashes = Object.fromEntries(
     Object.entries(payload.definitions).map(([key, definition]) => [key, fingerprint(definition)]),
@@ -178,5 +179,5 @@ export function selectSectionFacts(
       "fields" in definition ? definition.fields!.map((field) => field.key) : [],
     ]),
   );
-  return { payload, json: canonicalJson(payload), permissions, snapshot };
+  return { payload, json: canonicalJson(payload), snapshot };
 }

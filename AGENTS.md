@@ -67,7 +67,7 @@ Spec: `docs/character-fact-schema.md`; decisions Q1–Q12 and open questions: `d
 - Key prefixes encode scope: built-in `group.name`, character-scoped `custom.<id>` / `cg_<id>`, library-scoped `lib.<id>` / `lg_<id>`. Library definitions are passed in via `DefinitionContext` — never a global registry. Edits to a definition in use must pass `findBreakingChanges`.
 - Every repeated element (list item, event, relationship…) has a stable `id`.
 - Convert form input with `normalizeFactInput`, then validate with `parseCharacterFacts(input, context)`. Schemas never transform data. Stored v1 data goes through `migrateCharacterFacts` (never guess meaning).
-- Anything sent to AI must go through `selectFactsForAi` (sensitive fields, items (`sensitiveItemIds`) and sub-fields excluded unless allowed for that request). Envelope metadata such as `sensitiveItemIds` must be preserved by every transformation.
+- Anything sent to AI must go through `selectFactsForAi`. Sensitivity marks are retired (user decision, Q6 note): the profile AI allows every key of the section's groups, and the UI shows no sensitivity controls. The stored `sensitivity` / `sensitiveItemIds` stay valid and must still be preserved by every transformation.
 - Presentation (basic/advanced, templates) never changes facts — see `presentation.ts`.
 - Limits live in `constants.ts` (`LIMITS`); no magic numbers.
 - Nesting limit: group → sub-group → field → leaf sub-field.
@@ -163,6 +163,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 ## Development Efficiency & Task Execution Rules
 
 ### 1. Scope Control
+
 - Only modify files directly related to the requested task.
 - Do not refactor, restructure, rename, or optimize unrelated code.
 - Do not modify backend, database, API, or data models for frontend-only tasks unless strictly necessary.
@@ -171,6 +172,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Prefer minimal, targeted changes over large rewrites.
 
 ### 2. Codebase Exploration
+
 - Inspect only the files and dependencies relevant to the task.
 - Use targeted file searches instead of reading the entire repository.
 - Do not repeatedly read files whose relevant contents are already available in context.
@@ -178,6 +180,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Avoid unnecessary exploration once the implementation path is clear.
 
 ### 3. Implementation
+
 - Prefer simple, maintainable solutions over complex abstractions.
 - Reuse existing components and libraries whenever practical.
 - Avoid introducing new dependencies for features that can be implemented simply with existing tools.
@@ -187,6 +190,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Do not rewrite working components solely to improve code style.
 
 ### 4. Testing & Validation
+
 - Use the smallest relevant validation method for each change.
 - Do not automatically run the entire test suite for minor frontend or CSS changes.
 - For simple styling or animation changes, use targeted checks when sufficient.
@@ -199,6 +203,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Never skip critical validation when changes may affect data integrity, security, or core functionality.
 
 ### 5. Error Handling
+
 - Do not enter indefinite fix-test-fix loops.
 - After two unsuccessful attempts to resolve the same issue, stop and report the blocker, attempted solutions, and current state.
 - Do not modify unrelated code to make tests pass.
@@ -206,6 +211,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Preserve a working implementation whenever possible.
 
 ### 6. Task Completion
+
 - Stop once the requested functionality is implemented and reasonably validated.
 - Do not perform unsolicited cleanup, refactoring, or optimization after task completion.
 - Do not repeatedly review already validated code without a specific reason.
@@ -217,6 +223,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
   - Any remaining issues or limitations.
 
 ### 7. Frontend-Specific Guidelines
+
 - Treat visual changes, component styling, and animations as frontend-scoped tasks by default.
 - Prefer local component changes rather than modifying global styles.
 - Avoid changing existing API contracts or persisted data structures.
@@ -226,6 +233,7 @@ Design: `docs/database-design.md`; migration workflow and backups: `docs/databas
 - Do not add elaborate testing infrastructure for minor visual changes.
 
 ### 8. Execution Priority
+
 When deciding between multiple implementation approaches, prioritize:
 
 1. Correctness and preservation of existing functionality.
@@ -238,6 +246,7 @@ When deciding between multiple implementation approaches, prioritize:
 Do not sacrifice correctness, security, or data integrity merely to reduce execution time.
 
 ### 9. Tool Usage & Efficiency
+
 - Minimize unnecessary tool calls and redundant command execution.
 - Avoid repeatedly starting development servers or background processes.
 - Do not install packages unless needed for the requested functionality.

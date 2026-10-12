@@ -20,6 +20,4 @@ export const AI_LIMITS = {
   jobs: 200,
   ttlMs: 15 * 60_000,
   entries: 100,
-  permissions: 500,
-  refChars: 300,
 } as const;

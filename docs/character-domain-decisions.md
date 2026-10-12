@@ -118,6 +118,8 @@ Gợi ý khi A liên kết tới B và B chưa có quan hệ nào liên kết t�
 
 ### Q6 — Nhạy cảm
 
+> **Cập nhật 2026-10-13 (người dùng quyết định):** bỏ dấu nhạy cảm khỏi giao diện và khỏi luồng AI. AI nhận **mọi** dữ kiện thuộc các nhóm nguồn của mục hồ sơ; hộp thoại AI không còn ô cho phép. Trình biên tập không còn huy hiệu "Nhạy cảm", nút đánh dấu từng mục, hay ô "Dữ kiện nhạy cảm" khi tạo trường tùy chỉnh. Dữ liệu và schema **không đổi**: `sensitivity` trên định nghĩa và `sensitiveItemIds` đã lưu vẫn hợp lệ, được giữ nguyên khi lưu, nhưng bị bỏ qua. `selectFactsForAi` vẫn là cổng duy nhất; `selectSectionFacts` gọi nó với quyền cho mọi khóa. Các ghi chú dưới đây mô tả thiết kế cũ.
+
 - Mức phân loại ở **định nghĩa** (trường, trường con), không ở giá trị: người dùng không phải đánh dấu từng lần nhập, và chính sách áp dụng nhất quán.
 - Quyền cho phép là **tham số theo request**. Domain cố ý không có nơi lưu quyền ⇒ không thể "nhớ" sự đồng ý.
 - `explicit_none`/`not_applicable` của trường nhạy cảm cũng bị loại — "xác nhận không có tổn thương" cũng là thông tin riêng tư.

@@ -57,7 +57,7 @@ describe("AI job store (Postgres)", () => {
     const input = context(sectionId);
     const starter = createAiService(createAiJobStore(db));
     const other = createAiService(createAiJobStore(db));
-    const preview = await starter.preview(input, []);
+    const preview = await starter.preview(input);
     const started = await starter.start(
       preview.token,
       "",
@@ -140,7 +140,6 @@ describe("AI job store (Postgres)", () => {
       kind: "preview",
       expires: now + 60_000,
       input: { sectionId, draftRevision: 1, title: "T", groups: [] },
-      allow: [],
       json: "{}",
       snapshot: { scope: [], fingerprints: {} } as unknown as AiPreview["snapshot"],
     };

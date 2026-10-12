@@ -171,7 +171,7 @@ Thống kê: **9 nhóm, 6 nhóm con, 88 định nghĩa trường** (85 đang dù
 
 - Cột **SL**: _Một_ = một giá trị, _Nhiều_ = danh sách có id ổn định (khi `specified` phải có ≥ 1 phần tử).
 - Cột **Không có**: cho phép `explicit_none` (mục 4.1). Mọi trường đều nhận `specified` / `unspecified` / `not_applicable`.
-- Cột **Nhạy cảm**: mặc định không gửi cho AI (mục 9).
+- Cột **Nhạy cảm**: metadata của định nghĩa, được giữ cho tương thích. Từ 2026-10-13 app không dùng nó nữa: AI nhận mọi dữ kiện của mục hồ sơ (xem Q6 trong `character-domain-decisions.md`).
 - Cột **Cơ bản**: hiển thị ở chế độ Cơ bản của editor (mục 10). Chế độ Nâng cao hiển thị mọi trường không deprecated.
 - Thứ tự trong bảng là thứ tự hiển thị mặc định. Nhãn là bản tiếng Việt (`labels.vi.ts`); dữ liệu không lưu nhãn.
 

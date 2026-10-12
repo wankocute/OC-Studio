@@ -47,14 +47,13 @@ export async function previewSectionAiAction(
   const parsed = z
     .object({
       sectionId: z.uuid(),
-      allow: z.array(z.string().max(AI_LIMITS.refChars)).max(AI_LIMITS.permissions).default([]),
     })
     .safeParse(input);
   if (!parsed.success) return invalidInput(parsed.error);
   try {
     const env = getServerEnv();
     return ok({
-      ...(await getSectionAi().preview(await load(parsed.data.sectionId), parsed.data.allow)),
+      ...(await getSectionAi().preview(await load(parsed.data.sectionId))),
       ...aiConfiguration(env),
     });
   } catch (error) {

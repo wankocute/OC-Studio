@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, CircleSlash, History, MoreHorizontal, ShieldAlert } from "lucide-react";
+import { Ban, CircleSlash, History, MoreHorizontal } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,12 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import {
-  allowsExplicitNone,
-  type FactValue,
-  isRepeatedKind,
-  type LeafConfig,
-} from "@/features/characters/domain";
+import { allowsExplicitNone, type FactValue, type LeafConfig } from "@/features/characters/domain";
 import {
   type DraftState,
   emptyValueDraft,
@@ -39,7 +34,6 @@ import { useEditorContext } from "./editor-context";
 import { FieldMessage } from "./field-message";
 import { FieldShredHandle } from "./field-shredder";
 import { hasSingleControl, LeafInput } from "./leaf-input";
-import type { ItemSensitivity } from "./list-inputs";
 import { ObjectInput, ObjectListInput } from "./object-inputs";
 
 const t = messages.editor;
@@ -50,16 +44,6 @@ export const fieldDomId = (prefix: string, key: string) =>
 function FieldBadges({ field, inReview }: { field: EditorField; inReview: boolean }) {
   return (
     <>
-      {field.sensitive && (
-        <Badge
-          variant="outline"
-          className="border-warning/40 text-warning"
-          title={t.badges.sensitiveHint}
-        >
-          <ShieldAlert aria-hidden />
-          {t.badges.sensitive}
-        </Badge>
-      )}
       {field.scope === "character" && <Badge variant="secondary">{t.badges.custom}</Badge>}
       {field.scope === "library" && <Badge variant="secondary">{t.badges.library}</Badge>}
       {field.deprecated && (
@@ -164,14 +148,6 @@ function FieldValueInput({
   describedBy?: string;
 }) {
   const { definition } = field;
-  // Item marks are offered unless the whole field is sensitive (which already covers every item).
-  const sensitivity: ItemSensitivity | undefined =
-    isRepeatedKind(definition.kind) && !field.sensitive
-      ? {
-          ids: draft.sensitiveItemIds,
-          onChange: (ids) => onChange({ ...draft, sensitiveItemIds: ids }),
-        }
-      : undefined;
   const setValue = (value: FieldDraft["value"]) => onChange({ ...draft, value });
 
   if (definition.kind === "object" && draft.value.kind === "object") {
@@ -194,7 +170,6 @@ function FieldValueInput({
         fields={definition.fields}
         draft={draft.value}
         onChange={setValue}
-        sensitivity={sensitivity}
       />
     );
   }
@@ -209,7 +184,6 @@ function FieldValueInput({
       optionPath={field.key}
       error={error}
       describedBy={describedBy}
-      sensitivity={sensitivity}
     />
   );
 }

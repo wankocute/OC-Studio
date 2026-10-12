@@ -16,7 +16,6 @@ export type AiPreview = {
   kind: "preview";
   expires: number;
   input: AiEntryInput;
-  allow: string[];
   json: string;
   snapshot: AiSnapshot;
 };
@@ -29,7 +28,6 @@ export type AiCandidate = {
   content: RichTextDocument;
   snapshot: AiSnapshot;
   json: string;
-  allow: string[];
 };
 
 export type AiEntry = AiPreview | AiCandidate;

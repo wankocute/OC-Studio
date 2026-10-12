@@ -123,11 +123,6 @@ export function LibraryFieldsManager({
                     <Badge variant={deprecated ? "outline" : "secondary"}>
                       {t.status[row.status]}
                     </Badge>
-                    {definition.sensitivity === "sensitive" && (
-                      <Badge variant="outline" className="border-warning/40 text-warning">
-                        {messages.editor.badges.sensitive}
-                      </Badge>
-                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {messages.editor.kinds[definition.kind]} ·{" "}

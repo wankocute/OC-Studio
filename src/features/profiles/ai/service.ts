@@ -127,8 +127,8 @@ export function createAiService(store: AiStore) {
       // Read (never sent anywhere) only to warn when facts changed while the AI was writing.
       const latest = await load(entry.input.sectionId);
       const stale =
-        selectSectionFacts(latest.facts, latest.context, latest.groups, entry.allow).json !==
-          entry.json || latest.title !== entry.input.title;
+        selectSectionFacts(latest.facts, latest.context, latest.groups).json !== entry.json ||
+        latest.title !== entry.input.title;
       const expires = Date.now() + AI_LIMITS.ttlMs;
       const candidate: AiCandidate = {
         kind: "candidate",
@@ -137,7 +137,6 @@ export function createAiService(store: AiStore) {
         content,
         snapshot: entry.snapshot,
         json: entry.json,
-        allow: entry.allow,
       };
       const token = await put(candidate);
       const finished = await finish(job.id, {
@@ -169,8 +168,8 @@ export function createAiService(store: AiStore) {
   }
 
   const service = {
-    async preview(input: AiContext, allow: string[]) {
-      const selected = selectSectionFacts(input.facts, input.context, input.groups, allow);
+    async preview(input: AiContext) {
+      const selected = selectSectionFacts(input.facts, input.context, input.groups);
       if (selected.json.length > AI_LIMITS.inputChars) throw new AiError("limit");
       const token = await put({
         kind: "preview",
@@ -181,14 +180,12 @@ export function createAiService(store: AiStore) {
           title: input.title,
           groups: [...input.groups],
         },
-        allow,
         json: selected.json,
         snapshot: selected.snapshot,
       });
       return {
         token,
         json: selected.json,
-        permissions: selected.permissions,
         empty: Object.keys(selected.payload.values).length === 0,
         draftRevision: input.draftRevision,
       };
@@ -215,12 +212,7 @@ export function createAiService(store: AiStore) {
       if (existing) return existing;
       if (instruction.length > AI_LIMITS.instructionChars) throw new AiError("limit");
       const current = await load(entry.input.sectionId);
-      const selected = selectSectionFacts(
-        current.facts,
-        current.context,
-        current.groups,
-        entry.allow,
-      );
+      const selected = selectSectionFacts(current.facts, current.context, current.groups);
       if (
         selected.json !== entry.json ||
         current.title !== entry.input.title ||
@@ -321,8 +313,8 @@ export function createAiService(store: AiStore) {
       if (entry.kind !== "candidate") throw new AiError("expired");
       const latest = await load(entry.input.sectionId);
       const stale =
-        selectSectionFacts(latest.facts, latest.context, latest.groups, entry.allow).json !==
-          entry.json || latest.title !== entry.input.title;
+        selectSectionFacts(latest.facts, latest.context, latest.groups).json !== entry.json ||
+        latest.title !== entry.input.title;
       if (stale && !confirmStale) throw new AiError("stale");
       const saved = await write({
         sectionId: entry.input.sectionId,
