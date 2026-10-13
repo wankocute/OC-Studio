@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/*
+ * Below utilities: the library sets `position: relative` and `overflow` on the elements it
+ * enhances; unlayered, that beat `sticky`/`fixed`/`overflow-*` classes (sticky editor nav,
+ * dialogs). Layered, each element keeps its own positioning and overflow.
+ */
+@import "overlayscrollbars/overlayscrollbars.css" layer(base);
 
 @custom-variant dark (&:is(.dark *));
 
@@ -95,6 +101,10 @@
   --sidebar-accent-foreground: oklch(0.2 0.012 60);
   --sidebar-border: oklch(0.905 0.009 80);
   --sidebar-ring: oklch(0.6 0.11 285);
+
+  /* Overlay scrollbar thumb (`.os-theme-oc`): a light tint of the primary violet. */
+  --scrollbar-thumb: color-mix(in oklab, var(--primary) 28%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklab, var(--primary) 58%, transparent);
 }
 
 .dark {
@@ -134,6 +144,9 @@
   --sidebar-accent-foreground: oklch(0.96 0.006 80);
   --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.64 0.1 285);
+
+  --scrollbar-thumb: color-mix(in oklab, var(--primary) 30%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklab, var(--primary) 62%, transparent);
 }
 
 @layer base {
@@ -200,6 +213,63 @@ html.lenis body {
  */
 .lenis [data-lenis-prevent] {
   overscroll-behavior: contain;
+}
+
+/*
+ * Overlay scrollbars (OverlayScrollbars, see `PageScrollbars` and `useOverlayScrollbars`). The
+ * native bars are hidden and take no width; these float above the content. Thin at rest, wider
+ * and darker on hover/drag. The hit area (`--os-size` plus the handle's interactive offset) is
+ * wider than the visible thumb. Transitions use the motion tokens, so reduced motion turns them off.
+ */
+.os-theme-oc {
+  box-sizing: border-box;
+  --os-size: 12px;
+  --os-padding-perpendicular: 3px;
+  --os-padding-axis: 3px;
+  --os-track-border-radius: 9999px;
+  --os-handle-border-radius: 9999px;
+  --os-handle-bg: var(--scrollbar-thumb);
+  --os-handle-bg-hover: var(--scrollbar-thumb-active);
+  --os-handle-bg-active: var(--scrollbar-thumb-active);
+  --os-handle-min-size: 32px;
+  --os-handle-perpendicular-size: 4px;
+  --os-handle-perpendicular-size-hover: 100%;
+  --os-handle-perpendicular-size-active: 100%;
+  --os-handle-interactive-area-offset: 4px;
+}
+.os-theme-oc.os-scrollbar {
+  transition:
+    opacity var(--duration-slow) var(--ease-soft),
+    visibility var(--duration-slow) var(--ease-soft);
+}
+.os-theme-oc.os-scrollbar-vertical .os-scrollbar-handle {
+  transition:
+    background-color var(--duration-fast) var(--ease-soft),
+    width var(--duration-fast) var(--ease-soft);
+}
+.os-theme-oc.os-scrollbar-horizontal .os-scrollbar-handle {
+  transition:
+    background-color var(--duration-fast) var(--ease-soft),
+    height var(--duration-fast) var(--ease-soft);
+}
+/* The page bar: above the sticky top bar, below floating buttons, menus and dialogs. */
+body > .os-scrollbar.os-theme-oc {
+  z-index: 30;
+}
+
+/*
+ * Radix scroll lock (menus, selects, dialogs) with the page bar above. Radix sets
+ * `overflow: hidden` on <body>; with <html> already scrolling (OverlayScrollbars gives it an
+ * overflow), that no longer reaches the viewport — <body> itself would become a scroll container
+ * and every sticky element would jump. So the lock moves to <html>: the viewport stops scrolling
+ * at the same position and <body> stays a plain box. No width compensation is needed (the native
+ * bar takes no width, so Radix measures a gap of 0).
+ */
+html[data-overlayscrollbars-viewport]:has(> body[data-scroll-locked]) {
+  overflow: hidden !important;
+}
+html[data-overlayscrollbars-viewport] > body[data-scroll-locked] {
+  overflow: visible !important;
 }
 .lenis.lenis-smooth iframe {
   pointer-events: none;

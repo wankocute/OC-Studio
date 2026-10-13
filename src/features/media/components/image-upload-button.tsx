@@ -16,6 +16,7 @@ import {
 import type { MediaRole } from "@/db/schema/library";
 import { MEDIA_UPLOAD_LIMITS } from "@/features/media/image-signature";
 import { messages } from "@/i18n";
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
 
 import { IMAGE_ACCEPT, sendImage } from "./send-image";
 
@@ -50,6 +51,7 @@ export function ImageUploadButton({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [selection, setSelection] = useState<Selected[]>([]);
+  const scrollbars = useOverlayScrollbars<HTMLDivElement>();
   const [progress, setProgress] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const urls = useRef(new Map<string, string>());
@@ -143,7 +145,7 @@ export function ImageUploadButton({
       </Button>
 
       <Dialog open={selection.length > 0} onOpenChange={(open) => !open && !pending && clear()}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+        <DialogContent ref={scrollbars} className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t.previewTitle}</DialogTitle>
             <DialogDescription>

@@ -5,6 +5,8 @@ import { cn } from "cn";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
+
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
 }
@@ -25,11 +27,14 @@ function DropdownMenuContent({
   className,
   align = "start",
   sideOffset = 4,
+  ref,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const scrollbars = useOverlayScrollbars(ref);
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
+        ref={scrollbars}
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         align={align}

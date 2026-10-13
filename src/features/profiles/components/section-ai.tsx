@@ -2,12 +2,7 @@
 import { Loader2, Sparkles } from "lucide-react";
 import { useId, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -18,6 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { messages } from "@/i18n";
 import type { ActionResult } from "@/lib/action-result";
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
 import { AI_LIMITS } from "../ai/constants";
 import {
   applySectionAiAction,
@@ -65,6 +61,8 @@ export function SectionAi({
   const { job, open, setOpen } = ai;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [instruction, setInstruction] = useState("");
+  const scrollbars = useOverlayScrollbars<HTMLDivElement>();
+  const previewScrollbars = useOverlayScrollbars<HTMLPreElement>();
   /** Picked model id; `null` = the server's default. Fixed into the job when it starts. */
   const [model, setModel] = useState<string | null>(null);
   const modelId = useId();
@@ -155,6 +153,7 @@ export function SectionAi({
       </Button>
       <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
         <DialogContent
+          ref={scrollbars}
           className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
           aria-describedby={undefined}
         >
@@ -316,6 +315,7 @@ export function SectionAi({
                   <details open>
                     <summary className="cursor-pointer font-medium">{t.preview}</summary>
                     <pre
+                      ref={previewScrollbars}
                       data-testid="ai-facts-preview"
                       className="mt-2 max-h-64 overflow-y-auto rounded-lg bg-muted p-3 text-xs break-words whitespace-pre-wrap"
                     >

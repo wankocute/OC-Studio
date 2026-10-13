@@ -37,6 +37,7 @@ import {
 import { newOptionCode, newSubfieldKey } from "@/features/characters/editor/ids";
 import { unitLabel } from "@/features/characters/editor/layout";
 import { messages } from "@/i18n";
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
 
 import { FieldMessage } from "./field-message";
 
@@ -279,6 +280,7 @@ export function DefinitionDialog({
 }) {
   const prefix = useId();
   const [draft, setDraft] = useState(initial);
+  const scrollbars = useOverlayScrollbars<HTMLDivElement>();
   const [scope, setScope] = useState(initialScope);
   const [errors, setErrors] = useState<DefinitionErrors>({});
   const [pending, startTransition] = useTransition();
@@ -298,7 +300,7 @@ export function DefinitionDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent ref={scrollbars} className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <form onSubmit={submit} noValidate className="space-y-5">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">{title}</DialogTitle>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Lora } from "next/font/google";
 
 import { MotionProvider } from "@/components/providers/motion-provider";
+import { PageScrollbars } from "@/components/providers/page-scrollbars";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -33,8 +34,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang={DEFAULT_LOCALE}
       className={`${inter.variable} ${lora.variable} antialiased`}
       suppressHydrationWarning
+      // Hides the native page bar before OverlayScrollbars starts (`PageScrollbars`).
+      data-overlayscrollbars-initialize=""
     >
-      <body className="min-h-svh">
+      <body className="min-h-svh" data-overlayscrollbars-initialize="">
+        <PageScrollbars />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

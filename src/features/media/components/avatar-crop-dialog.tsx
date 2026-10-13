@@ -21,6 +21,7 @@ import {
 } from "@/features/media/avatar-crop";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
 
 const t = messages.media.crop;
 const MIN_ZOOM = 1;
@@ -229,13 +230,17 @@ export function AvatarCropDialog({
   onSave: (crop: AvatarCrop) => Promise<boolean>;
 }) {
   const [saving, setSaving] = useState(false);
+  const scrollbars = useOverlayScrollbars<HTMLDivElement>();
   return (
     <Dialog
       open={open && src !== null}
       // Closing (Escape, overlay, close button) is the same as "Hủy" — except mid-save.
       onOpenChange={(next) => !saving && onOpenChange(next)}
     >
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        ref={scrollbars}
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
+      >
         {src && (
           <CropperBody
             key={src}

@@ -23,6 +23,7 @@ import { contentHash, type RichTextDocument } from "@/features/profiles/domain";
 import type { RevisionSummaryView } from "@/features/profiles/view";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
 
 import { RichTextView } from "./rich-text-view";
 
@@ -60,6 +61,7 @@ export function HistorySheet({
   onRestored: (restored: RestoredView) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const scrollbars = useOverlayScrollbars<HTMLDivElement>();
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [selected, setSelected] = useState<Selected | null>(null);
   const [restoring, startRestore] = useTransition();
@@ -126,7 +128,10 @@ export function HistorySheet({
         <History data-icon="inline-start" aria-hidden />
         {t.open}
       </Button>
-      <SheetContent className="w-full overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
+      <SheetContent
+        ref={scrollbars}
+        className="w-full overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+      >
         <SheetHeader>
           <SheetTitle className="font-heading text-xl">
             {t.title} — {sectionTitle}

@@ -33,6 +33,7 @@ import { mergeOntoLatest } from "@/features/characters/editor/merge";
 import { validateSheet } from "@/features/characters/editor/validate";
 import { messages } from "@/i18n";
 import { scrollToElement, scrollToTop } from "@/lib/smooth-scroll";
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
 
 import { ConflictBanner } from "./conflict-banner";
 import { CustomFieldsPanel } from "./custom-fields-panel";
@@ -120,6 +121,7 @@ export function FactEditor(props: FactEditorProps) {
   });
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [activeItem, setActiveItem] = useState<string>();
+  const navScrollbars = useOverlayScrollbars<HTMLElement>();
   const contentRef = useRef<HTMLDivElement>(null);
 
   const { working, library } = state;
@@ -297,7 +299,10 @@ export function FactEditor(props: FactEditorProps) {
         )}
 
         <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
-          <aside className="lg:sticky lg:top-36 lg:max-h-[calc(100dvh-10rem)] lg:self-start lg:overflow-y-auto">
+          <aside
+            ref={navScrollbars}
+            className="lg:sticky lg:top-36 lg:max-h-[calc(100dvh-10rem)] lg:self-start lg:overflow-y-auto"
+          >
             <EditorNav
               entries={navEntries}
               active={active}

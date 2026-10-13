@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { PROFILE_LIMITS } from "@/features/profiles/domain";
 import type { SourceGroupOption } from "@/features/profiles/fact-sources";
 import { messages } from "@/i18n";
+import { useOverlayScrollbars } from "@/hooks/use-overlay-scrollbars";
 
 const t = messages.profiles;
 
@@ -42,10 +43,12 @@ function SourceGroupChecklist({
   onChange: (next: Set<string>) => void;
 }) {
   const prefix = useId();
+  const scrollbars = useOverlayScrollbars<HTMLDivElement>();
   return (
     <fieldset className="space-y-2">
       <legend className="mb-1 text-sm font-medium">{t.sourcesTitle}</legend>
-      <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+      {/* Right padding keeps the overlay scrollbar off the cards. */}
+      <div ref={scrollbars} className="grid max-h-64 gap-2 overflow-y-auto pr-3 sm:grid-cols-2">
         {groups.map((group) => {
           const id = `${prefix}-${group.id}`;
           return (
