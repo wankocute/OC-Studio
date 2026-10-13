@@ -112,7 +112,7 @@ describe("proxy matcher", () => {
     for (const path of ["/", "/login", "/api/health", "/media/abc", "/characters/a/edit"]) {
       expect(matcher.test(path)).toBe(true);
     }
-    for (const path of ["/_next/static/chunks/a.js", "/_next/image", "/favicon.ico"]) {
+    for (const path of ["/_next/static/chunks/a.js", "/_next/image", "/favicon.ico", "/icon.svg"]) {
       expect(matcher.test(path)).toBe(false);
     }
   });

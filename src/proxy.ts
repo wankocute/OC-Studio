@@ -34,6 +34,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except build assets, which are public anyway and contain no user data.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Everything except build assets and the app icon (shown on the login page too), which are
+  // public anyway and contain no user data.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };
